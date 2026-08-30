@@ -174,6 +174,7 @@ export default function App() {
   const ultimoUptimeMs = useRef<number | null>(null)
   const connectionStatusRef = useRef<api.ConnectionStatus>('connecting')
   const falhaConexaoNotificada = useRef(false)
+  const usuarioEditandoRef = useRef(false)
 
   const notify = (kind: 'ok' | 'error', text: string) => {
     setNotice({ kind, text })
@@ -187,31 +188,36 @@ export default function App() {
 
   useEffect(() => {
     let active = true
+
+    const incorporarEstado = (next: DeviceState) => {
+      if (ultimoUptimeMs.current !== null
+          && next.system.uptimeMs < ultimoUptimeMs.current) {
+        notify('ok', 'ESP32 reiniciado e reconectado')
+      }
+      ultimoUptimeMs.current = next.system.uptimeMs
+      setDevice(next)
+      if (!usuarioEditandoRef.current) setDraft(next.desired)
+      if (!next.system.scanRunning && !next.system.scanFinished) {
+        scanCarregadoDoDispositivo.current = false
+        setScan(emptyScan)
+      } else if (next.system.scanFinished
+          && !scanCarregadoDoDispositivo.current) {
+        scanCarregadoDoDispositivo.current = true
+        void api.getScan().then((resultado) => {
+          if (active) setScan(resultado)
+        }).catch(() => {
+          scanCarregadoDoDispositivo.current = false
+        })
+      }
+    }
+
     const load = async () => {
       try {
         const next = await api.getState()
         if (!active) return
-        if (ultimoUptimeMs.current !== null
-            && next.system.uptimeMs < ultimoUptimeMs.current) {
-          notify('ok', 'ESP32 reiniciado e reconectado')
-        }
-        ultimoUptimeMs.current = next.system.uptimeMs
         falhaConexaoNotificada.current = false
         atualizarConexao('online')
-        setDevice(next)
-        setDraft((current) => current ?? next.desired)
-        if (!next.system.scanRunning && !next.system.scanFinished) {
-          scanCarregadoDoDispositivo.current = false
-          setScan(emptyScan)
-        } else if (next.system.scanFinished
-            && !scanCarregadoDoDispositivo.current) {
-          scanCarregadoDoDispositivo.current = true
-          void api.getScan().then((resultado) => {
-            if (active) setScan(resultado)
-          }).catch(() => {
-            scanCarregadoDoDispositivo.current = false
-          })
-        }
+        incorporarEstado(next)
       } catch (error) {
         if (active) {
           atualizarConexao('offline')
@@ -248,6 +254,7 @@ export default function App() {
         atualizarConexao(status)
         if (status === 'online') void load()
       },
+      (next) => { if (active) incorporarEstado(next) },
     )
     return () => { active = false; window.clearInterval(poll); window.clearInterval(timer); unsubscribe() }
   }, [])
@@ -269,7 +276,11 @@ export default function App() {
     setBusy(name)
     try {
       const next = await task()
-      if (next) { setDevice(next); setDraft(next.desired) }
+      if (next) {
+        usuarioEditandoRef.current = false
+        setDevice(next)
+        setDraft(next.desired)
+      }
       notify('ok', success)
     } catch (error) {
       notify('error', error instanceof Error ? error.message : 'Não foi possível concluir a ação')
@@ -297,7 +308,10 @@ export default function App() {
   const hasPendingRf = draft.frequencyKhz !== device.applied.frequencyKhz
     || draft.powerDbuv !== device.applied.powerDbuv
     || antennaPending
-  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setDraft((current) => current ? { ...current, [key]: value } : current)
+  const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
+    usuarioEditandoRef.current = true
+    setDraft((current) => current ? { ...current, [key]: value } : current)
+  }
   const conectado = api.usingMock || connectionStatus === 'online'
   const noAr = conectado && device.applied.onAir
 

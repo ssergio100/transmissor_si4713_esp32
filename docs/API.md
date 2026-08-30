@@ -181,6 +181,26 @@ O servidor publica um quadro quando a sequência ASQ muda, nominalmente a cada
 `levelDbfs` e `overmodulation` vêm do detector ASQ do Si4713. São adequados para
 um indicador rápido de presença/pico e não substituem um medidor PCM calibrado.
 
+## WebSocket de estado
+
+O mesmo canal também publica um quadro `state` sempre que a configuração
+desejada, o estado RF aplicado, a transmissão, a varredura ou a disponibilidade
+do rádio mudarem (o nível de áudio segue no quadro `audio`):
+
+```json
+{
+  "type": "state",
+  "desired": { ... },
+  "applied": { ... },
+  "system": { ... }
+}
+```
+
+O conteúdo reutiliza a mesma serialização de `GET /api/v1/state`; a interface
+usa esse quadro para refletir imediatamente alterações feitas pelo painel
+físico. O polling REST permanece como leitura inicial e como fallback quando o
+WebSocket está fora do ar.
+
 ## Erros
 
 Erros usam um código HTTP coerente e o mesmo formato:
