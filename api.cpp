@@ -35,14 +35,27 @@ void Api::iniciar() {
   servidor_.begin();
   websocket_.begin();
   websocket_.onEvent(tratarEventoWebSocket);
-  Serial.println("[API] REST na porta 80; telemetria WebSocket na porta 81");
+  xTaskCreatePinnedToCore(
+      rodarServicoWeb,
+      "servico_web",
+      PILHA_TAREFA_WEB,
+      this,
+      1,
+      &tarefaWeb_,
+      0
+  );
+  Serial.println("[API] REST :80 / WS :81 em task dedicada (core 0)");
 }
 
-void Api::processar() {
-  servidor_.handleClient();
-  websocket_.loop();
-  publicarTelemetriaAudio();
-  publicarEstadoSeMudou();
+void Api::rodarServicoWeb(void* parametro) {
+  auto* api = static_cast<Api*>(parametro);
+  for (;;) {
+    api->servidor_.handleClient();
+    api->websocket_.loop();
+    api->publicarTelemetriaAudio();
+    api->publicarEstadoSeMudou();
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
 }
 
 void Api::registrarRotas() {
@@ -84,7 +97,10 @@ void Api::atualizarConfiguracao() {
     return;
   }
 
-  if (!transmissor_.aplicarConfiguracao(configuracao)) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::APLICAR_CONFIGURACAO;
+  comando.configuracao = configuracao;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(409, "nao_aplicada", "Si4713 ocupado, ausente ou em varredura");
     return;
   }
@@ -92,7 +108,9 @@ void Api::atualizarConfiguracao() {
 }
 
 void Api::salvarConfiguracao() {
-  if (!transmissor_.salvarConfiguracao()) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::SALVAR_CONFIGURACAO;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(500, "falha_persistencia", "Nao foi possivel salvar os ajustes");
     return;
   }
@@ -100,7 +118,9 @@ void Api::salvarConfiguracao() {
 }
 
 void Api::restaurarPadroes() {
-  if (!transmissor_.restaurarPadroes()) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::RESTAURAR_PADROES;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(500, "falha_restauracao", "Nao foi possivel restaurar os padroes");
     return;
   }
@@ -116,7 +136,11 @@ void Api::controlarTransmissao() {
   }
   ConfiguracaoTransmissor configuracao = transmissor_.copiarConfiguracao();
   configuracao.transmissaoHabilitada = documento["enabled"].as<bool>();
-  if (!transmissor_.aplicarConfiguracao(configuracao)) {
+
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::APLICAR_CONFIGURACAO;
+  comando.configuracao = configuracao;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(409, "nao_aplicada", "Nao foi possivel alterar a transmissao");
     return;
   }
@@ -124,7 +148,9 @@ void Api::controlarTransmissao() {
 }
 
 void Api::reiniciarRf() {
-  if (!transmissor_.reiniciarRf()) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::REINICIAR_RF;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(
         409,
         "rf_nao_restaurado",
@@ -136,7 +162,9 @@ void Api::reiniciarRf() {
 }
 
 void Api::iniciarVarredura() {
-  if (!transmissor_.iniciarVarredura()) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::INICIAR_VARREDURA;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(409, "varredura_indisponivel", "Si4713 ocupado ou ausente");
     return;
   }
@@ -181,7 +209,10 @@ void Api::aplicarFrequencia() {
     return;
   }
 
-  if (!transmissor_.aplicarFrequencia(frequenciaKhz)) {
+  ComandoTransmissor comando;
+  comando.tipo = ComandoTipo::APLICAR_FREQUENCIA;
+  comando.frequenciaKhz = frequenciaKhz;
+  if (!transmissor_.enviarComando(comando)) {
     responderErro(
         409,
         "frequencia_nao_aplicada",

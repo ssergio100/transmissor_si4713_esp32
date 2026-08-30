@@ -198,7 +198,6 @@ void loop() {
   processarControles();
   transmissor.processar();
   Rede::processar();
-  api.processar();
 
   const uint32_t agora = millis();
   if (agora - ultimaAtualizacaoDisplayMs
