@@ -1,0 +1,444 @@
+#include "display.h"
+
+#include <Wire.h>
+#include <string.h>
+
+#include "configuracao.h"
+
+namespace {
+
+constexpr uint8_t BLOCO_SOMBREADO = 0;
+constexpr uint8_t ASQ_SOBREMODULACAO = 0x04;
+
+}  // namespace
+
+Display::Display()
+    : lcd_(
+          Configuracao::LCD_ENDERECO,
+          Configuracao::LCD_COLUNAS,
+          Configuracao::LCD_LINHAS
+      ) {}
+
+bool Display::iniciar() {
+  Wire.beginTransmission(Configuracao::LCD_ENDERECO);
+  if (Wire.endTransmission() != 0) return false;
+
+  lcd_.init();
+  lcd_.backlight();
+  uint8_t bloco[8] = {
+      0b10101, 0b01010, 0b10101, 0b01010,
+      0b10101, 0b01010, 0b10101, 0b01010
+  };
+  lcd_.createChar(BLOCO_SOMBREADO, bloco);
+  lcd_.clear();
+  invalidarCache();
+  pronto_ = true;
+  return true;
+}
+
+void Display::mostrarInicializacao() {
+  if (!pronto_) return;
+  lcd_.clear();
+  invalidarCache();
+  escreverLinha(0, "Transmissor FM");
+  escreverLinha(1, "Si4713 + ESP32-S3");
+  escreverLinha(2, "Inicializando...");
+  escreverLinha(3, "");
+}
+
+void Display::mostrarMensagem(const char* linha1, const char* linha2) {
+  if (!pronto_) return;
+  escreverLinha(0, linha1);
+  escreverLinha(1, linha2 == nullptr ? "" : linha2);
+  escreverLinha(2, "");
+  escreverLinha(3, "");
+}
+
+void Display::renderizar(
+    const Menu& menu,
+    const ConfiguracaoTransmissor& configuracao,
+    const TelemetriaTransmissor& telemetria,
+    uint16_t melhorFrequencia,
+    uint8_t melhorRuido
+) {
+  if (!pronto_) return;
+
+  const uint32_t agora = millis();
+  if (agora - ultimaRessincronizacaoMs_
+      >= Configuracao::INTERVALO_STATUS_SI4713_MS) {
+    ultimaRessincronizacaoMs_ = agora;
+    invalidarCache();
+  }
+
+  if (telemetria.recuperando) {
+    mostrarMensagem("Recuperando Si4713", "Aguarde...");
+    return;
+  }
+
+  switch (menu.tela()) {
+    case Menu::Tela::PRINCIPAL:
+      mostrarPrincipal(configuracao, telemetria);
+      break;
+    case Menu::Tela::RAIZ:
+      mostrarRaiz(menu.itemSelecionado());
+      break;
+    case Menu::Tela::RF:
+      mostrarRf(configuracao, menu.itemSelecionado(), menu.editando());
+      break;
+    case Menu::Tela::AUDIO:
+      mostrarAudio(configuracao, menu.itemSelecionado(), menu.editando());
+      break;
+    case Menu::Tela::RDS:
+      mostrarRds(
+          configuracao,
+          menu.itemSelecionado(),
+          menu.editando(),
+          menu.cursorTexto()
+      );
+      break;
+    case Menu::Tela::MONITOR:
+      mostrarMonitor(telemetria);
+      break;
+    case Menu::Tela::VARREDURA:
+      mostrarVarredura(
+          menu.itemSelecionado(),
+          telemetria,
+          melhorFrequencia,
+          melhorRuido
+      );
+      break;
+    case Menu::Tela::SISTEMA:
+      mostrarSistema(menu.itemSelecionado());
+      break;
+  }
+}
+
+void Display::mostrarPrincipal(
+    const ConfiguracaoTransmissor& configuracao,
+    const TelemetriaTransmissor& telemetria
+) {
+  char texto[21];
+  snprintf(
+      texto,
+      sizeof(texto),
+      "FM %u.%02u MHz %s",
+      configuracao.frequenciaKhz / 100,
+      configuracao.frequenciaKhz % 100,
+      telemetria.transmitindo ? "NO AR" : "OFF"
+  );
+  escreverLinha(0, texto);
+  snprintf(
+      texto,
+      sizeof(texto),
+      "PWR:%3u %s RDS:%s",
+      configuracao.potenciaDbuv,
+      configuracao.estereo ? "ST" : "MO",
+      configuracao.rdsHabilitado ? "ON" : "OFF"
+  );
+  escreverLinha(1, texto);
+
+  if (telemetria.transmitindo) {
+    const char* estado = (telemetria.asq & ASQ_SOBREMODULACAO) != 0
+        || telemetria.nivelAudioDbfs >= 0 ? "CLIP" : "OK";
+    snprintf(
+        texto,
+        sizeof(texto),
+        "AUDIO %4d dBFS %s",
+        telemetria.nivelAudioDbfs,
+        estado
+    );
+  } else {
+    snprintf(texto, sizeof(texto), "AUDIO   -- dBFS");
+  }
+  escreverLinha(2, texto);
+  mostrarBarraAudio(telemetria.nivelAudioDbfs, telemetria.transmitindo);
+}
+
+void Display::mostrarRaiz(uint8_t item) {
+  mostrarCabecalho("MENU PRINCIPAL", item, Menu::QUANTIDADE_RAIZ);
+  static const char* itens[] = {
+      "RF", "Audio", "RDS", "Monitor", "Canal livre", "Sistema", "Voltar"
+  };
+  escreverLinha(1, itens[min(item, static_cast<uint8_t>(Menu::RAIZ_VOLTAR))]);
+  escreverLinha(2, "Clique para abrir");
+  escreverLinha(3, "Gire  Segure: Volta");
+}
+
+void Display::mostrarRf(
+    const ConfiguracaoTransmissor& configuracao,
+    uint8_t item,
+    bool editando
+) {
+  mostrarCabecalho("MENU RF", item, Menu::QUANTIDADE_RF);
+  char texto[21];
+  if (item == Menu::RF_FREQUENCIA) {
+    escreverLinha(1, "Frequencia");
+    snprintf(
+        texto,
+        sizeof(texto),
+        "%u.%02u MHz",
+        configuracao.frequenciaKhz / 100,
+        configuracao.frequenciaKhz % 100
+    );
+  } else if (item == Menu::RF_POTENCIA) {
+    escreverLinha(1, "Potencia RF");
+    snprintf(texto, sizeof(texto), "%u dBuV", configuracao.potenciaDbuv);
+  } else if (item == Menu::RF_ANTENA) {
+    escreverLinha(1, "Capacitancia antena");
+    if (configuracao.capacitanciaAntena == 0) {
+      snprintf(texto, sizeof(texto), "AUTO");
+    } else {
+      snprintf(
+          texto,
+          sizeof(texto),
+          "%u.%02u pF",
+          configuracao.capacitanciaAntena / 4,
+          (configuracao.capacitanciaAntena % 4) * 25
+      );
+    }
+  } else if (item == Menu::RF_TRANSMISSAO) {
+    escreverLinha(1, "Transmissao");
+    snprintf(
+        texto,
+        sizeof(texto),
+        "%s",
+        configuracao.transmissaoHabilitada ? "TX LIGADO" : "TX DESLIGADO"
+    );
+  } else {
+    escreverLinha(1, "Voltar");
+    snprintf(texto, sizeof(texto), "Clique para voltar");
+  }
+  escreverLinha(2, texto);
+  mostrarAjudaEdicao(editando);
+}
+
+void Display::mostrarAudio(
+    const ConfiguracaoTransmissor& configuracao,
+    uint8_t item,
+    bool editando
+) {
+  mostrarCabecalho("MENU AUDIO", item, Menu::QUANTIDADE_AUDIO);
+  char texto[21];
+  if (item == Menu::AUDIO_ESTEREO) {
+    escreverLinha(1, "Modo de audio");
+    snprintf(texto, sizeof(texto), "%s", configuracao.estereo ? "ESTEREO" : "MONO");
+  } else if (item == Menu::AUDIO_PRE_ENFASE) {
+    escreverLinha(1, "Pre-enfase");
+    snprintf(texto, sizeof(texto), "%u us", configuracao.preEnfaseUs);
+  } else if (item == Menu::AUDIO_DESVIO) {
+    escreverLinha(1, "Desvio de audio");
+    snprintf(texto, sizeof(texto), "%u kHz", configuracao.desvioAudioKhz);
+  } else if (item == Menu::AUDIO_MUDO) {
+    escreverLinha(1, "Entrada de audio");
+    snprintf(texto, sizeof(texto), "%s", configuracao.audioMudo ? "MUTE" : "ATIVA");
+  } else {
+    escreverLinha(1, "Voltar");
+    snprintf(texto, sizeof(texto), "Clique para voltar");
+  }
+  escreverLinha(2, texto);
+  mostrarAjudaEdicao(editando);
+}
+
+void Display::mostrarRds(
+    const ConfiguracaoTransmissor& configuracao,
+    uint8_t item,
+    bool editando,
+    uint8_t cursor
+) {
+  mostrarCabecalho("MENU RDS", item, Menu::QUANTIDADE_RDS);
+  char texto[21];
+  if (item == Menu::RDS_HABILITADO) {
+    escreverLinha(1, "Transmissao RDS");
+    snprintf(texto, sizeof(texto), "%s", configuracao.rdsHabilitado ? "RDS LIGADO" : "RDS DESLIGADO");
+  } else if (item == Menu::RDS_PS) {
+    escreverLinha(1, "Nome PS (8 chars)");
+    snprintf(texto, sizeof(texto), "%.8s", configuracao.rdsPs);
+  } else if (item == Menu::RDS_TEXTO) {
+    snprintf(texto, sizeof(texto), "RadioText pos %u/32", cursor + 1);
+    escreverLinha(1, texto);
+    const uint8_t inicio = cursor < 20 ? 0 : 12;
+    snprintf(texto, sizeof(texto), "%.20s", configuracao.rdsText + inicio);
+  } else if (item == Menu::RDS_PI) {
+    escreverLinha(1, "PI Code");
+    snprintf(texto, sizeof(texto), "0x%04X", configuracao.rdsPi);
+  } else {
+    escreverLinha(1, "Voltar");
+    snprintf(texto, sizeof(texto), "Clique para voltar");
+  }
+  escreverLinha(2, texto);
+
+  if (editando && (item == Menu::RDS_PS || item == Menu::RDS_TEXTO)) {
+    const char caractere = item == Menu::RDS_PS
+        ? configuracao.rdsPs[cursor]
+        : configuracao.rdsText[cursor];
+    snprintf(texto, sizeof(texto), "Pos:%u Char:%c Clique>", cursor + 1, caractere);
+    escreverLinha(3, texto);
+  } else {
+    mostrarAjudaEdicao(editando);
+  }
+}
+
+void Display::mostrarMonitor(const TelemetriaTransmissor& telemetria) {
+  char texto[21];
+  escreverLinha(0, "MONITOR SI4713");
+  snprintf(
+      texto,
+      sizeof(texto),
+      "FM:%u.%02u PWR:%u",
+      telemetria.frequenciaEfetivaKhz / 100,
+      telemetria.frequenciaEfetivaKhz % 100,
+      telemetria.potenciaEfetivaDbuv
+  );
+  escreverLinha(1, texto);
+  snprintf(
+      texto,
+      sizeof(texto),
+      "Audio:%d ASQ:%02X",
+      telemetria.nivelAudioDbfs,
+      telemetria.asq
+  );
+  escreverLinha(2, texto);
+  snprintf(
+      texto,
+      sizeof(texto),
+      "ANT:%u.%02u pF Seg:Vol",
+      telemetria.capacitanciaEfetiva / 4,
+      (telemetria.capacitanciaEfetiva % 4) * 25
+  );
+  escreverLinha(3, texto);
+}
+
+void Display::mostrarVarredura(
+    uint8_t item,
+    const TelemetriaTransmissor& telemetria,
+    uint16_t melhorFrequencia,
+    uint8_t melhorRuido
+) {
+  mostrarCabecalho("CANAL LIVRE", item, Menu::QUANTIDADE_VARREDURA);
+  char texto[21];
+  if (telemetria.varreduraAtiva) {
+    escreverLinha(1, "Medindo faixa FM...");
+    snprintf(texto, sizeof(texto), "Progresso: %u%%", telemetria.progressoVarredura);
+    escreverLinha(2, texto);
+    escreverLinha(3, "Encoder: cancelar");
+    return;
+  }
+  if (item == Menu::VARREDURA_INICIAR) {
+    escreverLinha(1, "Iniciar varredura");
+    escreverLinha(2, "Clique para iniciar");
+  } else if (item == Menu::VARREDURA_USAR_MELHOR) {
+    escreverLinha(1, "Usar melhor canal");
+    if (telemetria.varreduraConcluida && melhorFrequencia != 0) {
+      snprintf(
+          texto,
+          sizeof(texto),
+          "%u.%02u MHz N:%u",
+          melhorFrequencia / 100,
+          melhorFrequencia % 100,
+          melhorRuido
+      );
+      escreverLinha(2, texto);
+    } else {
+      escreverLinha(2, "Execute o scanner");
+    }
+  } else {
+    escreverLinha(1, "Voltar");
+    escreverLinha(2, "Clique para voltar");
+  }
+  escreverLinha(3, "Gire  Clique: Sel");
+}
+
+void Display::mostrarSistema(uint8_t item) {
+  mostrarCabecalho("SISTEMA", item, Menu::QUANTIDADE_SISTEMA);
+  if (item == Menu::SISTEMA_SALVAR) {
+    escreverLinha(1, "Salvar configuracao");
+    escreverLinha(2, "Gravar na memoria");
+  } else if (item == Menu::SISTEMA_PADROES) {
+    escreverLinha(1, "Restaurar padroes");
+    escreverLinha(2, "Clique para restaurar");
+  } else if (item == Menu::SISTEMA_WIFI) {
+    escreverLinha(1, "Configurar Wi-Fi");
+    escreverLinha(2, "Abrir portal local");
+  } else if (item == Menu::SISTEMA_INFO) {
+    escreverLinha(1, "Firmware ESP32-S3");
+    escreverLinha(2, Configuracao::VERSAO_FIRMWARE);
+  } else {
+    escreverLinha(1, "Voltar");
+    escreverLinha(2, "Clique para voltar");
+  }
+  escreverLinha(3, "Gire  Clique: Sel");
+}
+
+void Display::mostrarBarraAudio(int8_t nivelDbfs, bool valido) {
+  uint8_t preenchidos = 0;
+  if (valido) {
+    const int nivel = constrain(nivelDbfs, -70, 0);
+    preenchidos = static_cast<uint8_t>(
+        (static_cast<int32_t>(nivel + 70) * Configuracao::LCD_COLUNAS + 35) / 70
+    );
+  }
+  uint8_t barra[Configuracao::LCD_COLUNAS];
+  for (uint8_t coluna = 0; coluna < Configuracao::LCD_COLUNAS; coluna++) {
+    barra[coluna] = coluna < preenchidos
+        ? static_cast<uint8_t>(0xFF)
+        : BLOCO_SOMBREADO;
+  }
+  if (barraRenderizadaValida_
+      && memcmp(barra, barraRenderizada_, sizeof(barra)) == 0) {
+    return;
+  }
+
+  lcd_.setCursor(0, 3);
+  for (uint8_t coluna = 0; coluna < Configuracao::LCD_COLUNAS; coluna++) {
+    lcd_.write(barra[coluna]);
+  }
+  memcpy(barraRenderizada_, barra, sizeof(barra));
+  barraRenderizadaValida_ = true;
+  linhasRenderizadas_[3][0] = '\0';
+}
+
+void Display::mostrarCabecalho(
+    const char* titulo,
+    uint8_t item,
+    uint8_t quantidade
+) {
+  char texto[21];
+  snprintf(texto, sizeof(texto), "%-15s %u/%u", titulo, item + 1, quantidade);
+  escreverLinha(0, texto);
+}
+
+void Display::mostrarAjudaEdicao(bool editando) {
+  escreverLinha(3, editando ? "Gire  Clique: OK" : "Gire  Clique: Sel");
+}
+
+void Display::escreverLinha(uint8_t linha, const char* texto) {
+  char completa[21];
+  size_t indice = 0;
+  while (indice < Configuracao::LCD_COLUNAS && texto[indice] != '\0') {
+    completa[indice] = texto[indice];
+    indice++;
+  }
+  while (indice < Configuracao::LCD_COLUNAS) completa[indice++] = ' ';
+  completa[Configuracao::LCD_COLUNAS] = '\0';
+  if (strncmp(
+          linhasRenderizadas_[linha],
+          completa,
+          Configuracao::LCD_COLUNAS
+      ) == 0) {
+    return;
+  }
+  lcd_.setCursor(0, linha);
+  lcd_.print(completa);
+  memcpy(
+      linhasRenderizadas_[linha],
+      completa,
+      Configuracao::LCD_COLUNAS + 1
+  );
+  if (linha == 3) barraRenderizadaValida_ = false;
+}
+
+void Display::invalidarCache() {
+  memset(linhasRenderizadas_, 0, sizeof(linhasRenderizadas_));
+  memset(barraRenderizada_, 0, sizeof(barraRenderizada_));
+  barraRenderizadaValida_ = false;
+}

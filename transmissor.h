@@ -1,0 +1,44 @@
+#pragma once
+
+#include "modelos.h"
+#include "radio_si4713.h"
+
+class Transmissor {
+ public:
+  bool iniciar();
+  void processar();
+
+  const ConfiguracaoTransmissor& configuracao() const;
+  const TelemetriaTransmissor& telemetria() const;
+  ConfiguracaoTransmissor copiarConfiguracao() const;
+
+  bool aplicarConfiguracao(ConfiguracaoTransmissor configuracao);
+  bool salvarConfiguracao();
+  bool restaurarPadroes();
+  bool reiniciarRf();
+  bool iniciarVarredura();
+  bool cancelarVarredura();
+  bool aplicarFrequencia(uint16_t frequenciaKhz);
+
+  size_t quantidadeMedicoes() const;
+  const MedicaoCanal& medicao(size_t indice) const;
+  uint16_t melhorFrequencia() const;
+  uint8_t melhorNivelRuido() const;
+  uint8_t enderecoRadio() const;
+  bool horaValida() const;
+
+ private:
+  void atualizarRadioTextDinamico(bool forcar = false);
+  bool formatarRadioText(char* destino, size_t tamanho) const;
+  static String aplicarModelo(
+      const char* modelo,
+      const char* data,
+      const char* hora
+  );
+
+  ConfiguracaoTransmissor configuracao_;
+  RadioSi4713 radio_;
+  char ultimoRadioTextAplicado_[33] = "";
+  uint32_t ultimoSegundoRadioText_ = UINT32_MAX;
+  bool radioDisponivelNoCicloAnterior_ = false;
+};

@@ -1,0 +1,97 @@
+# Transmissor Si4713 com ESP32-S3
+
+Projeto independente para controlar o módulo Si4713, LCD I2C 20x4 e encoder com
+uma ESP32-S3-DevKitC-1 N16R8. O painel físico funciona sem rede; a interface
+React é uma segunda forma de operação sobre o mesmo estado do transmissor.
+
+## Implementado
+
+- controle do Si4713 com frequência, potência, antena, estéreo, pré-ênfase,
+  desvio, mute, transmissão e recuperação automática;
+- LCD 20x4 e encoder com clique, giro e pressão longa;
+- configuração e frases RDS persistidas em NVS;
+- RadioText manual, frase salva, hora, data, data/hora e modelo com tokens;
+- varredura completa de 87,5 a 108,0 MHz e aplicação direta de qualquer
+  frequência medida;
+- provisionamento pelo WiFiManager, sem SSID ou senha no código;
+- API REST na porta 80 e telemetria de áudio por WebSocket na porta 81;
+- interface React/Vite responsiva, com modo de simulação para desenvolvimento.
+
+O frontend permanece separado e não é gravado no ESP32 nesta fase.
+
+## Estrutura
+
+```text
+transmissor_si4713_esp32/
+├── transmissor_si4713_esp32.ino  # inicialização e loop cooperativo
+├── radio_si4713.*                # acesso exclusivo ao Si4713
+├── transmissor.*                 # regras e estado compartilhado
+├── rede.* / api.*                # Wi-Fi, REST e WebSocket
+├── display.* / menu.*            # LCD e navegação física
+├── interface-web/                # React + TypeScript + Vite
+├── docs/API.md                   # contrato de comunicação
+└── docs/HARDWARE_BRINGUP.md      # ligações e testes de bancada
+```
+
+## Interface para testes
+
+```sh
+cd interface-web
+npm install
+npm run dev
+```
+
+Por padrão, `npm run dev` abre o painel em modo de simulação. Isso permite
+ajustar e demonstrar toda a tela sem uma placa conectada.
+
+Para usar o ESP32 real, crie `interface-web/.env.local`:
+
+```dotenv
+VITE_USE_MOCK=false
+VITE_DEVICE_URL=http://transmissor-si4713.local
+```
+
+Também é possível substituir o nome local pelo IP mostrado no LCD ou no log
+serial. Reinicie o Vite depois de alterar o arquivo.
+
+## Provisionamento Wi-Fi
+
+Sem credenciais válidas, o equipamento cria a rede `TRANSMISSOR-SI4713`.
+Conecte-se a ela e abra `http://192.168.4.1` para escolher a rede local. O mesmo
+portal pode ser solicitado pelo menu físico ou pela interface.
+
+As credenciais ficam na área persistente administrada pela pilha Wi-Fi do ESP32.
+Elas não são armazenadas em `configuracao.h`, no React ou em arquivos de projeto.
+
+## Compilar o firmware
+
+```sh
+./scripts/compilar.sh
+```
+
+Se `arduino-cli` não estiver no `PATH`, defina explicitamente:
+
+```sh
+ARDUINO_CLI_BIN=/caminho/para/arduino-cli ./scripts/compilar.sh
+```
+
+O script compila para ESP32-S3 N16R8, mas não grava a placa. O mapa inicial de
+pinos e o roteiro seguro de primeira energização estão em
+[`docs/HARDWARE_BRINGUP.md`](docs/HARDWARE_BRINGUP.md).
+
+## Documentação
+
+- [`ANALISE_INICIAL.md`](ANALISE_INICIAL.md): decisões, referências e limites;
+- [`docs/API.md`](docs/API.md): endpoints, JSON, WebSocket e modo de erro;
+- [`docs/referencias-visuais/painel-desktop.png`](docs/referencias-visuais/painel-desktop.png): conceito visual usado na implementação.
+
+## Validação atual
+
+- firmware: compilado para `esp32:esp32:esp32s3`, 36% de flash e 16% de RAM;
+- frontend: TypeScript e build de produção concluídos;
+- navegador: tela desktop verificada e início de transmissão simulado validado;
+- hardware: ainda depende da conferência das ligações e do teste com a placa real.
+
+O aviso de arquitetura emitido pela biblioteca `LiquidCrystal I2C` é conhecido:
+ela declara AVR no manifesto, embora tenha compilado para ESP32. A resposta real
+do LCD será confirmada no teste de bancada antes de considerar o hardware fechado.
