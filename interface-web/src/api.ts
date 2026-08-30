@@ -1,4 +1,4 @@
-import type { AudioTelemetry, DeviceState, ScanResult, Settings } from './types'
+import type { AudioTelemetry, DeviceState, ScanResult, Settings, StateMessage } from './types'
 
 const configuredUrl = import.meta.env.VITE_DEVICE_URL || 'http://transmissor-si4713.local'
 export const deviceUrl = configuredUrl.replace(/\/$/, '')
@@ -171,6 +171,7 @@ export type ConnectionStatus = 'connecting' | 'online' | 'offline'
 export function subscribeAudio(
   onData: (telemetry: AudioTelemetry) => void,
   onStatus: (status: ConnectionStatus) => void,
+  onState?: (state: DeviceState) => void,
 ): () => void {
   if (usingMock) {
     onStatus('online')
@@ -196,7 +197,14 @@ export function subscribeAudio(
     socket = new WebSocket(websocketUrl)
     socket.onopen = () => onStatus('online')
     socket.onmessage = (event) => {
-      try { onData(JSON.parse(event.data) as AudioTelemetry) } catch { /* ignora quadros inválidos */ }
+      try {
+        const mensagem = JSON.parse(event.data) as StateMessage | AudioTelemetry
+        if (mensagem.type === 'state') {
+          onState?.(mensagem as DeviceState)
+        } else {
+          onData(mensagem as AudioTelemetry)
+        }
+      } catch { /* ignora quadros inválidos */ }
     }
     socket.onclose = () => {
       socket = null

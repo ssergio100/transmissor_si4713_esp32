@@ -40,7 +40,10 @@ class Api {
       String& erro
   );
   String criarJsonEstado() const;
+  String serializarEstado(bool comTipo) const;
+  uint32_t assinaturaEstado() const;
   void publicarTelemetriaAudio();
+  void publicarEstadoSeMudou();
 
   static void tratarEventoWebSocket(
       uint8_t cliente,
@@ -54,5 +57,6 @@ class Api {
   WebServer servidor_{80};
   WebSocketsServer websocket_{81};
   uint32_t ultimaSequenciaAudio_ = 0;
+  uint32_t ultimaAssinaturaEstado_ = 0;
   bool ultimoEstadoNoAr_ = false;
 };

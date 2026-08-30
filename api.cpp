@@ -42,6 +42,7 @@ void Api::processar() {
   servidor_.handleClient();
   websocket_.loop();
   publicarTelemetriaAudio();
+  publicarEstadoSeMudou();
 }
 
 void Api::registrarRotas() {
@@ -351,9 +352,15 @@ bool Api::preencherConfiguracao(
 }
 
 String Api::criarJsonEstado() const {
+  return serializarEstado(false);
+}
+
+String Api::serializarEstado(bool comTipo) const {
   const ConfiguracaoTransmissor& configuracao = transmissor_.configuracao();
   const TelemetriaTransmissor& telemetria = transmissor_.telemetria();
   JsonDocument documento;
+
+  if (comTipo) documento["type"] = "state";
 
   JsonObject desejado = documento["desired"].to<JsonObject>();
   desejado["frequencyKhz"] = configuracao.frequenciaKhz;
@@ -425,6 +432,58 @@ void Api::publicarTelemetriaAudio() {
   String mensagem;
   serializeJson(documento, mensagem);
   websocket_.broadcastTXT(mensagem);
+}
+
+void Api::publicarEstadoSeMudou() {
+  if (websocket_.connectedClients() == 0) return;
+
+  const uint32_t assinatura = assinaturaEstado();
+  if (assinatura == ultimaAssinaturaEstado_) return;
+  ultimaAssinaturaEstado_ = assinatura;
+
+  String mensagem = serializarEstado(true);
+  websocket_.broadcastTXT(mensagem);
+}
+
+uint32_t Api::assinaturaEstado() const {
+  const ConfiguracaoTransmissor& configuracao = transmissor_.configuracao();
+  const TelemetriaTransmissor& telemetria = transmissor_.telemetria();
+
+  uint32_t assinatura = 2166136261u;
+  const auto dobra = [&assinatura](uint32_t valor) {
+    assinatura ^= valor;
+    assinatura *= 16777619u;
+  };
+
+  dobra(configuracao.frequenciaKhz);
+  dobra(configuracao.potenciaDbuv);
+  dobra(configuracao.capacitanciaAntena);
+  dobra(configuracao.rdsPi);
+  dobra(configuracao.preEnfaseUs);
+  dobra(configuracao.desvioAudioKhz);
+  dobra(configuracao.estereo);
+  dobra(configuracao.transmissaoHabilitada);
+  dobra(configuracao.rdsHabilitado);
+  dobra(configuracao.audioMudo);
+  dobra(static_cast<uint8_t>(configuracao.fonteRadioText));
+  for (char caractere : configuracao.rdsPs) dobra(static_cast<uint8_t>(caractere));
+  for (char caractere : configuracao.rdsText) {
+    dobra(static_cast<uint8_t>(caractere));
+  }
+  for (char caractere : configuracao.rdsModelo) {
+    dobra(static_cast<uint8_t>(caractere));
+  }
+
+  dobra(telemetria.si4713Disponivel);
+  dobra(telemetria.recuperando);
+  dobra(telemetria.frequenciaEfetivaKhz);
+  dobra(telemetria.potenciaEfetivaDbuv);
+  dobra(telemetria.capacitanciaEfetiva);
+  dobra(telemetria.varreduraAtiva);
+  dobra(telemetria.varreduraConcluida);
+  dobra(telemetria.progressoVarredura);
+  dobra(telemetria.recuperacoes);
+  return assinatura;
 }
 
 void Api::tratarEventoWebSocket(

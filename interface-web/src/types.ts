@@ -49,6 +49,10 @@ export interface DeviceState {
   system: SystemState
 }
 
+export interface StateMessage extends DeviceState {
+  type: 'state'
+}
+
 export interface Measurement {
   frequencyKhz: number
   noiseLevel: number
