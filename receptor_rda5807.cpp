@@ -26,8 +26,9 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
   radio_.setBass(false);
   radio_.setBand(2);  // Faixa mundial: 76 a 108 MHz.
   radio_.setSoftmute(false);
-  radio_.setAudioOutputHighImpedance(true);
-  radio_.setVolume(0);
+  radio_.setAudioOutputHighImpedance(false);
+  radio_.setVolume(7);
+  radio_.setMute(false);
   radio_.setMono(true);
   telemetria_.disponivel = true;
 
