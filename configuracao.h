@@ -52,7 +52,7 @@ constexpr uint16_t FREQUENCIA_MINIMA_KHZ = 7610;
 constexpr uint16_t FREQUENCIA_MAXIMA_KHZ = 10800;
 constexpr uint16_t PASSO_FREQUENCIA_KHZ = 10;
 constexpr uint8_t POTENCIA_MINIMA_DBUV = 88;
-constexpr uint8_t POTENCIA_MAXIMA_DBUV = 115;
+constexpr uint8_t POTENCIA_MAXIMA_DBUV = 118;
 constexpr uint8_t CAPACITANCIA_ANTENA_MAXIMA = 191;
 
 constexpr long FUSO_HORARIO_SEGUNDOS = -3L * 60L * 60L;
