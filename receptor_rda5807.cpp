@@ -52,9 +52,9 @@ bool ReceptorRda5807::sintonizar(uint16_t frequenciaKhz) {
   }
   if (telemetria_.frequenciaKhz == frequenciaKhz) return true;
 
-  // A biblioteca representa a frequencia em unidades de 10 kHz:
-  // 10170 corresponde a 101,7 MHz.
-  radio_.setFrequency(frequenciaKhz / 10);
+  // O projeto e a biblioteca representam a frequencia em unidades de 10 kHz:
+  // 10170 corresponde a 101,70 MHz.
+  radio_.setFrequency(frequenciaKhz);
   telemetria_.frequenciaKhz = frequenciaKhz;
   Serial.printf("[RDA5807] sintonizado em %u\n", frequenciaKhz);
   return true;
