@@ -141,14 +141,14 @@ void Display::mostrarPrincipal(
     snprintf(
         texto,
         sizeof(texto),
-        "RX %u.%02uMHz RSSI:%2u",
+        "%u.%02uMHz RSSI:%3u",
         telemetriaReceptor.frequenciaKhz / 100,
         telemetriaReceptor.frequenciaKhz % 100,
         telemetriaReceptor.rssi
     );
     escreverLinha(3, texto);
   } else {
-    escreverLinha(3, "RX ---.--MHz RSSI:--");
+    escreverLinha(3, "---.--MHz RSSI:---");
   }
 }
 
