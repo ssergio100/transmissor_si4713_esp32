@@ -15,6 +15,9 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
       }
     }
     editando_ = false;
+    if (tela_ == Tela::RF && item_ == RF_FREQUENCIA) {
+      return Acao::APLICAR_FREQUENCIA;
+    }
     return Acao::APLICAR_CONFIGURACAO;
   }
 
@@ -33,6 +36,9 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
 Menu::Acao Menu::voltar() {
   if (editando_) {
     editando_ = false;
+    if (tela_ == Tela::RF && item_ == RF_FREQUENCIA) {
+      return Acao::APLICAR_FREQUENCIA;
+    }
     return Acao::APLICAR_CONFIGURACAO;
   }
   if (tela_ == Tela::PRINCIPAL) entrar(Tela::RAIZ);
@@ -68,7 +74,7 @@ Menu::Acao Menu::girar(
           Configuracao::FREQUENCIA_MINIMA_KHZ,
           Configuracao::FREQUENCIA_MAXIMA_KHZ
       );
-      return Acao::APLICAR_CONFIGURACAO;
+      return Acao::PREVISUALIZAR_FREQUENCIA;
     }
     if (item_ == RF_POTENCIA) {
       configuracao.potenciaDbuv = constrain(
@@ -138,7 +144,11 @@ Menu::Acao Menu::selecionarRaiz() {
 }
 
 Menu::Acao Menu::selecionarRf(ConfiguracaoTransmissor& configuracao) {
-  if (item_ == RF_FREQUENCIA || item_ == RF_POTENCIA || item_ == RF_ANTENA) {
+  if (item_ == RF_FREQUENCIA) {
+    editando_ = true;
+    return Acao::INICIAR_AJUSTE_FREQUENCIA;
+  }
+  if (item_ == RF_POTENCIA || item_ == RF_ANTENA) {
     editando_ = true;
   } else if (item_ == RF_TRANSMISSAO) {
     configuracao.transmissaoHabilitada = !configuracao.transmissaoHabilitada;

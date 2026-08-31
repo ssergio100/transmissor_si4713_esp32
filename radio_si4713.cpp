@@ -6,10 +6,43 @@
 #include "configuracao.h"
 #include "diagnostico_i2c.h"
 
+namespace {
+
+volatile bool interrupcaoSi4713Pendente = false;
+
+void IRAM_ATTR tratarInterrupcaoSi4713() {
+  interrupcaoSi4713Pendente = true;
+}
+
+bool consumirInterrupcaoSi4713() {
+  noInterrupts();
+  const bool pendente = interrupcaoSi4713Pendente;
+  interrupcaoSi4713Pendente = false;
+  interrupts();
+  return pendente;
+}
+
+void limparInterrupcaoSi4713() {
+  noInterrupts();
+  interrupcaoSi4713Pendente = false;
+  interrupts();
+}
+
+}  // namespace
+
 RadioSi4713::RadioSi4713()
     : radio_(Configuracao::PIN_RESET_SI4713) {}
 
 bool RadioSi4713::iniciar() {
+  // Nao habilitar pull-up aqui: GP2 define o modo do barramento durante reset.
+  pinMode(Configuracao::PIN_INTERRUPCAO_SI4713, INPUT);
+  detachInterrupt(digitalPinToInterrupt(Configuracao::PIN_INTERRUPCAO_SI4713));
+  limparInterrupcaoSi4713();
+  attachInterrupt(
+      digitalPinToInterrupt(Configuracao::PIN_INTERRUPCAO_SI4713),
+      tratarInterrupcaoSi4713,
+      FALLING
+  );
   resetFisico(true);
 
   const uint8_t resultadoEndereco1 = DiagnosticoI2c::consultarEndereco(
@@ -60,11 +93,13 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   const bool sintoniaMudou = primeiraAplicacao
       || configuracao.frequenciaKhz != configuracaoAplicada_.frequenciaKhz;
   const bool potenciaMudou = primeiraAplicacao
+      || sintoniaMudou
       || configuracao.potenciaDbuv != configuracaoAplicada_.potenciaDbuv
       || configuracao.transmissaoHabilitada
           != configuracaoAplicada_.transmissaoHabilitada
       || configuracao.capacitanciaAntena
-          != configuracaoAplicada_.capacitanciaAntena;
+          != configuracaoAplicada_.capacitanciaAntena
+      || transmissaoPausadaParaAjuste_;
   const bool baseRdsMudou = primeiraAplicacao
       || configuracao.rdsHabilitado != configuracaoAplicada_.rdsHabilitado
       || configuracao.rdsPi != configuracaoAplicada_.rdsPi;
@@ -72,6 +107,25 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
       || strncmp(configuracao.rdsPs, configuracaoAplicada_.rdsPs, 8) != 0;
   const bool textoRdsMudou = primeiraAplicacao
       || strncmp(configuracao.rdsText, configuracaoAplicada_.rdsText, 32) != 0;
+  const bool estadoRfMudou = sintoniaMudou || potenciaMudou;
+
+  // Durante uma inicializacao ou reaplicacao RF, NO AR so pode voltar depois
+  // que frequencia e potencia terminarem e forem consultadas no Si4713.
+  if (estadoRfMudou) telemetria_.transmitindo = false;
+
+  // Uma mudanca direta (por exemplo, pela API ou pela varredura) tambem deve
+  // retirar a portadora antes de ressintonizar. No ajuste interativo a potencia
+  // ja foi zerada no primeiro passo e permanece assim ate a confirmacao.
+  if (sintoniaMudou && !transmissaoPausadaParaAjuste_) {
+    if (!confirmarOperacao(
+            radio_.setTXpower(0),
+            "pausar TX para alterar frequencia",
+            true
+        )) {
+      return false;
+    }
+    transmissaoPausadaParaAjuste_ = true;
+  }
 
   if (sintoniaMudou
       && !confirmarOperacao(
@@ -179,7 +233,6 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
           )) {
         return false;
       }
-      telemetria_.transmitindo = true;
     } else {
       if (!confirmarOperacao(
               radio_.setTXpower(0),
@@ -188,11 +241,9 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
           )) {
         return false;
       }
-      telemetria_.transmitindo = false;
     }
   }
 
-  const bool estadoRfMudou = sintoniaMudou || potenciaMudou;
   if (estadoRfMudou
       && !confirmarOperacao(
           radio_.readTuneStatus(),
@@ -206,8 +257,69 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   telemetria_.frequenciaEfetivaKhz = radio_.currFreq;
   telemetria_.potenciaEfetivaDbuv = radio_.currdBuV;
   telemetria_.capacitanciaEfetiva = radio_.currAntCap;
-  if (estadoRfMudou) {
-    atualizarEstadoRfConfirmado(configuracao, "aplicacao");
+  if (estadoRfMudou
+      && !atualizarEstadoRfConfirmado(configuracao, "aplicacao")) {
+    return false;
+  }
+  transmissaoPausadaParaAjuste_ = false;
+  return true;
+}
+
+bool RadioSi4713::iniciarAjusteFrequencia() {
+  if (!telemetria_.si4713Disponivel
+      || telemetria_.varreduraAtiva
+      || !configurado_) {
+    return false;
+  }
+  if (transmissaoPausadaParaAjuste_) return true;
+
+  if (!confirmarOperacao(
+          radio_.setTXpower(0),
+          "pausar TX para ajuste de frequencia",
+          true
+      )) {
+    return false;
+  }
+  transmissaoPausadaParaAjuste_ = true;
+  telemetria_.transmitindo = false;
+  telemetria_.potenciaEfetivaDbuv = 0;
+  Serial.println("[RF] TX pausado para ajuste de frequencia");
+  return true;
+}
+
+bool RadioSi4713::previsualizarFrequencia(uint16_t frequenciaKhz) {
+  if (frequenciaKhz < Configuracao::FREQUENCIA_MINIMA_KHZ
+      || frequenciaKhz > Configuracao::FREQUENCIA_MAXIMA_KHZ
+      || frequenciaKhz % Configuracao::PASSO_FREQUENCIA_KHZ != 0
+      || !iniciarAjusteFrequencia()) {
+    return false;
+  }
+
+  if (!confirmarOperacao(
+          radio_.tuneFM(frequenciaKhz),
+          "passo do ajuste de frequencia",
+          true
+      )
+      || !confirmarOperacao(
+          radio_.readTuneStatus(),
+          "confirmar passo do ajuste de frequencia",
+          true
+      )) {
+    return false;
+  }
+
+  telemetria_.frequenciaEfetivaKhz = radio_.currFreq;
+  telemetria_.potenciaEfetivaDbuv = radio_.currdBuV;
+  telemetria_.capacitanciaEfetiva = radio_.currAntCap;
+  if (radio_.currFreq != frequenciaKhz || radio_.currdBuV != 0) {
+    telemetria_.inconsistenciasRf++;
+    Serial.printf(
+        "[RF] Passo de ajuste incoerente: desejado=%u retornado=%u/%u\n",
+        frequenciaKhz,
+        radio_.currFreq,
+        radio_.currdBuV
+    );
+    return false;
   }
   return true;
 }
@@ -215,11 +327,58 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
 bool RadioSi4713::reiniciarRf() {
   if (!telemetria_.si4713Disponivel
       || telemetria_.varreduraAtiva
+      || transmissaoPausadaParaAjuste_
       || !configurado_) {
     return false;
   }
   Serial.println("[RF] Reiniciando sintonia e estagio de potencia");
   return aplicarEstadoRf(configuracaoAplicada_, "reinicio RF");
+}
+
+void RadioSi4713::setLeituraAudio(bool habilitar) {
+  if (leituraAudioHabilitada_ == habilitar) return;
+  if (!habilitar) {
+    telemetria_.nivelAudioDbfs = -70;
+    telemetria_.asq = 0;
+  }
+  leituraAudioHabilitada_ = habilitar;
+  ultimaLeituraAudioMs_ = millis();
+  Serial.printf(
+      "[AUDIO] monitoramento via I2C %s\n",
+      habilitar ? "habilitado (solicitado pela interface)" : "desabilitado (sem polling ASQ)"
+  );
+}
+
+bool RadioSi4713::leituraAudioHabilitada() const {
+  return leituraAudioHabilitada_;
+}
+
+bool RadioSi4713::reconhecerInterrupcao() {
+  if (!telemetria_.alarmeInterrupcaoSi4713Pendente) return true;
+  if (!telemetria_.si4713Disponivel) return false;
+
+  // Limpa primeiro apenas a marca do ESP. Se a condicao continuar ativa depois
+  // do INTACK, um novo pulso sera preservado pela ISR e virara outro episodio.
+  limparInterrupcaoSi4713();
+  if (!confirmarOperacao(
+          radio_.readASQ(true),
+          "reconhecimento da interrupcao ASQ",
+          false
+      )) {
+    return false;
+  }
+
+  telemetria_.nivelAudioDbfs = radio_.currInLevel;
+  telemetria_.asq = radio_.currASQ;
+  telemetria_.ultimoEventoAsq = radio_.currASQ & 0x07;
+  telemetria_.ultimaInterrupcaoLida = true;
+  telemetria_.alarmeInterrupcaoSi4713Pendente = false;
+  telemetria_.sequenciaAudio++;
+  Serial.printf(
+      "[SI4713-INT] evento #%lu reconhecido; GP2 rearmado\n",
+      static_cast<unsigned long>(telemetria_.interrupcoesSi4713)
+  );
+  return true;
 }
 
 void RadioSi4713::processar() {
@@ -233,6 +392,20 @@ void RadioSi4713::processar() {
       recuperar();
     }
     return;
+  }
+
+  if (consumirInterrupcaoSi4713()) {
+    if (!leituraAudioHabilitada_
+        && !telemetria_.alarmeInterrupcaoSi4713Pendente) {
+      processarInterrupcao();
+      if (!telemetria_.si4713Disponivel) return;
+    }
+  }
+
+  if (leituraAudioHabilitada_
+      && telemetria_.alarmeInterrupcaoSi4713Pendente
+      && !reconhecerInterrupcao()) {
+    if (!telemetria_.si4713Disponivel) return;
   }
 
   if (telemetria_.varreduraAtiva) {
@@ -250,37 +423,71 @@ void RadioSi4713::processar() {
 
   if (!telemetria_.transmitindo) return;
 
-  if (agora - ultimaLeituraAudioMs_
+  // O polling de ASQ e sempre dirigido pela interface (nunca autonomo).
+  // Desligado, so uma interrupcao GP2 pode provocar uma leitura pontual.
+  if (!leituraAudioHabilitada_) {
+    ultimaLeituraAudioMs_ = agora;
+  } else if (agora - ultimaLeituraAudioMs_
       >= Configuracao::INTERVALO_LEITURA_AUDIO_MS) {
     ultimaLeituraAudioMs_ = agora;
-    if (confirmarOperacao(radio_.readASQ(), "telemetria de audio", false)) {
+    if (confirmarOperacao(
+            // Em monitoramento continuo, cada amostra reconhece o intervalo
+            // anterior. O bit OVERMOD passa a representar corte recente.
+            radio_.readASQ(true),
+            "telemetria de audio",
+            false
+        )) {
       telemetria_.nivelAudioDbfs = radio_.currInLevel;
       telemetria_.asq = radio_.currASQ;
+      if (telemetria_.alarmeInterrupcaoSi4713Pendente) {
+        telemetria_.alarmeInterrupcaoSi4713Pendente = false;
+        Serial.println(
+            "[SI4713-INT] alerta reconhecido pelo monitoramento continuo"
+        );
+      }
       telemetria_.sequenciaAudio++;
     }
   }
 
-  if (agora - ultimaLeituraStatusMs_
-      >= Configuracao::INTERVALO_STATUS_SI4713_MS) {
-    ultimaLeituraStatusMs_ = agora;
-    if (confirmarOperacao(
-            radio_.readTuneStatus(),
-            "telemetria de sintonia",
-            false
-        )) {
-      telemetria_.frequenciaEfetivaKhz = radio_.currFreq;
-      telemetria_.potenciaEfetivaDbuv = radio_.currdBuV;
-      telemetria_.capacitanciaEfetiva = radio_.currAntCap;
-      atualizarEstadoRfConfirmado(
-          configuracaoAplicada_,
-          "monitoramento"
-      );
-    }
+}
+
+void RadioSi4713::processarInterrupcao() {
+  telemetria_.interrupcoesSi4713++;
+  telemetria_.ultimaInterrupcaoSi4713Ms = millis();
+  telemetria_.ultimoEventoAsq = 0;
+  telemetria_.ultimaInterrupcaoLida = false;
+  telemetria_.alarmeInterrupcaoSi4713Pendente = true;
+
+  // Le sem INTACK: o Si4713 mantem a causa travada e nao gera uma tempestade
+  // de novos pulsos enquanto a mesma ocorrencia aguarda reconhecimento.
+  if (!confirmarOperacao(radio_.readASQ(false), "interrupcao ASQ", false)) {
+    Serial.printf(
+        "[SI4713-INT] evento #%lu; falha ao ler a causa\n",
+        static_cast<unsigned long>(telemetria_.interrupcoesSi4713)
+    );
+    return;
   }
+
+  telemetria_.nivelAudioDbfs = radio_.currInLevel;
+  telemetria_.asq = radio_.currASQ;
+  telemetria_.ultimoEventoAsq = radio_.currASQ & 0x07;
+  telemetria_.ultimaInterrupcaoLida = true;
+  telemetria_.sequenciaAudio++;
+  Serial.printf(
+      "[SI4713-INT] evento #%lu: %s (ASQ=0x%02X, nivel=%d dBFS)\n",
+      static_cast<unsigned long>(telemetria_.interrupcoesSi4713),
+      nomeEventoSi4713(telemetria_),
+      telemetria_.ultimoEventoAsq,
+      telemetria_.nivelAudioDbfs
+  );
 }
 
 bool RadioSi4713::iniciarVarredura() {
-  if (!telemetria_.si4713Disponivel || telemetria_.varreduraAtiva) return false;
+  if (!telemetria_.si4713Disponivel
+      || telemetria_.varreduraAtiva
+      || transmissaoPausadaParaAjuste_) {
+    return false;
+  }
 
   if (!confirmarOperacao(
           radio_.setTXpower(0),
@@ -385,7 +592,6 @@ bool RadioSi4713::recuperar() {
   tentativasRecuperacaoDesdeReset_ = 0;
   telemetria_.recuperacoes++;
   ultimaLeituraAudioMs_ = millis();
-  ultimaLeituraStatusMs_ = millis();
   return true;
 }
 
@@ -424,6 +630,12 @@ bool RadioSi4713::inicializarNoEndereco(uint8_t endereco) {
   proximoEnderecoRecuperacao_ = endereco;
   telemetria_.si4713Disponivel = true;
   recuperacaoPendente_ = false;
+  telemetria_.alarmeInterrupcaoSi4713Pendente = false;
+  limparInterrupcaoSi4713();
+  Serial.printf(
+      "[SI4713] GP2/INT ativo no GPIO%d (sobremodulacao)\n",
+      Configuracao::PIN_INTERRUPCAO_SI4713
+  );
   return true;
 }
 
@@ -462,11 +674,6 @@ void RadioSi4713::medirProximaFrequencia() {
   if (!confirmarOperacao(
           radio_.readTuneMeasure(frequencia),
           "medicao de canal",
-          true
-      )
-      || !confirmarOperacao(
-          radio_.readTuneStatus(),
-          "resultado da medicao",
           true
       )) {
     telemetria_.varreduraAtiva = false;
@@ -539,7 +746,7 @@ bool RadioSi4713::atualizarEstadoRfConfirmado(
   const bool frequenciaConfere =
       radio_.currFreq == configuracao.frequenciaKhz;
   const bool potenciaConfere = configuracao.transmissaoHabilitada
-      ? radio_.currdBuV > 0
+      ? radio_.currdBuV == configuracao.potenciaDbuv
       : radio_.currdBuV == 0;
   const bool estadoConfere = frequenciaConfere && potenciaConfere;
 
@@ -561,5 +768,12 @@ bool RadioSi4713::atualizarEstadoRfConfirmado(
 
   telemetria_.transmitindo = configuracao.transmissaoHabilitada;
   recuperacaoRfPendente_ = false;
+  Serial.printf(
+      "[RF] Sequencia concluida em %s: frequencia=%u potencia=%u TX=%s\n",
+      contexto,
+      radio_.currFreq,
+      radio_.currdBuV,
+      telemetria_.transmitindo ? "ON" : "OFF"
+  );
   return true;
 }

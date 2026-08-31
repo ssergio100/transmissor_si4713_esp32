@@ -46,7 +46,7 @@ bool Si4713Seguro::tuneFM(uint16_t frequenciaKhz) {
   };
   uint8_t status = 0;
   return executarComando(comando, sizeof(comando), &status, 1)
-      && aguardarStc(LIMITE_TUNE_US);
+      && concluirOperacaoStc(LIMITE_TUNE_US);
 }
 
 bool Si4713Seguro::setTXpower(
@@ -62,7 +62,7 @@ bool Si4713Seguro::setTXpower(
   };
   uint8_t status = 0;
   return executarComando(comando, sizeof(comando), &status, 1)
-      && aguardarStc(LIMITE_POWER_US);
+      && concluirOperacaoStc(LIMITE_POWER_US);
 }
 
 bool Si4713Seguro::readTuneMeasure(uint16_t frequenciaKhz) {
@@ -76,7 +76,7 @@ bool Si4713Seguro::readTuneMeasure(uint16_t frequenciaKhz) {
   };
   uint8_t status = 0;
   return executarComando(comando, sizeof(comando), &status, 1)
-      && aguardarStc(LIMITE_TUNE_US);
+      && concluirOperacaoStc(LIMITE_TUNE_US);
 }
 
 bool Si4713Seguro::readTuneStatus() {
@@ -92,8 +92,11 @@ bool Si4713Seguro::readTuneStatus() {
   return true;
 }
 
-bool Si4713Seguro::readASQ() {
-  const uint8_t comando[] = {CMD_TX_ASQ_STATUS, 1};
+bool Si4713Seguro::readASQ(bool reconhecerInterrupcao) {
+  const uint8_t comando[] = {
+      CMD_TX_ASQ_STATUS,
+      static_cast<uint8_t>(reconhecerInterrupcao ? 1 : 0)
+  };
   uint8_t resposta[5];
   if (!executarComando(comando, sizeof(comando), resposta, sizeof(resposta))) {
     return false;
@@ -183,7 +186,8 @@ void Si4713Seguro::reset() {
 }
 
 bool Si4713Seguro::powerUp() {
-  const uint8_t comando[] = {CMD_POWER_UP, 0x12, 0x50};
+  // XOSCEN | GPO2OEN | FUNC_TX. GP2 passa a fornecer o pulso /INT.
+  const uint8_t comando[] = {CMD_POWER_UP, 0x52, 0x50};
   uint8_t status = 0;
   if (!executarComando(
           comando,
@@ -197,7 +201,10 @@ bool Si4713Seguro::powerUp() {
   return setProperty(SI4713_PROP_REFCLK_FREQ, 32768)
       && setProperty(SI4713_PROP_TX_PREEMPHASIS, 0)
       && setProperty(SI4713_PROP_TX_ACOMP_GAIN, 10)
-      && setProperty(SI4713_PROP_TX_ACOMP_ENABLE, 0);
+      && setProperty(SI4713_PROP_TX_ACOMP_ENABLE, 0)
+      // Nesta primeira etapa, somente a sobremodulacao gera interrupcao ASQ.
+      && setProperty(SI4713_PROP_TX_ASQ_INTERRUPT_SOURCE, 0x0004)
+      && setProperty(SI4713_PROP_GPO_IEN, 0x0002);
 }
 
 bool Si4713Seguro::getRev(uint8_t& revisao) {
@@ -224,6 +231,13 @@ bool Si4713Seguro::aguardarStc(uint32_t limiteUs) {
     delay(3);
   } while (static_cast<uint32_t>(micros() - inicio) <= limiteUs);
   return falhar("timeout aguardando STC");
+}
+
+bool Si4713Seguro::concluirOperacaoStc(uint32_t limiteUs) {
+  // GET_INT_STATUS apenas observa STC. O bit permanece ativo ate que
+  // TX_TUNE_STATUS seja enviado com INTACK=1. Sem este reconhecimento, a
+  // operacao seguinte poderia consumir o STC anterior e terminar cedo demais.
+  return aguardarStc(limiteUs) && readTuneStatus();
 }
 
 bool Si4713Seguro::executarComando(

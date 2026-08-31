@@ -6,6 +6,7 @@
 constexpr uint8_t SI4710_ADDR0 = 0x11;
 constexpr uint8_t SI4710_ADDR1 = 0x63;
 
+constexpr uint16_t SI4713_PROP_GPO_IEN = 0x0001;
 constexpr uint16_t SI4713_PROP_REFCLK_FREQ = 0x0201;
 constexpr uint16_t SI4713_PROP_TX_COMPONENT_ENABLE = 0x2100;
 constexpr uint16_t SI4713_PROP_TX_AUDIO_DEVIATION = 0x2101;
@@ -14,6 +15,7 @@ constexpr uint16_t SI4713_PROP_TX_LINE_INPUT_MUTE = 0x2105;
 constexpr uint16_t SI4713_PROP_TX_PREEMPHASIS = 0x2106;
 constexpr uint16_t SI4713_PROP_TX_ACOMP_ENABLE = 0x2200;
 constexpr uint16_t SI4713_PROP_TX_ACOMP_GAIN = 0x2204;
+constexpr uint16_t SI4713_PROP_TX_ASQ_INTERRUPT_SOURCE = 0x2300;
 constexpr uint16_t SI4713_PROP_TX_RDS_INTERRUPT_SOURCE = 0x2C00;
 constexpr uint16_t SI4713_PROP_TX_RDS_PI = 0x2C01;
 constexpr uint16_t SI4713_PROP_TX_RDS_PS_MIX = 0x2C02;
@@ -34,7 +36,7 @@ class Si4713Seguro {
   bool setTXpower(uint8_t potenciaDbuv, uint8_t capacitanciaAntena = 0);
   bool readTuneMeasure(uint16_t frequenciaKhz);
   bool readTuneStatus();
-  bool readASQ();
+  bool readASQ(bool reconhecerInterrupcao = false);
   bool setProperty(uint16_t propriedade, uint16_t valor);
   bool beginRDS(uint16_t pi);
   bool setRDSstation(const char* texto);
@@ -55,7 +57,7 @@ class Si4713Seguro {
   static constexpr uint8_t STATUS_STC = 0x01;
 
   // Baseados nos limites do driver Si4713 do kernel Linux. O CTS recebe
-  // margem para o escalonamento de 1 ms do Arduino/FreeRTOS.
+  // margem para o escalonamento de 1 ms da plataforma Arduino.
   static constexpr uint32_t LIMITE_CTS_US = 5000;
   static constexpr uint32_t LIMITE_POWER_UP_US = 200000;
   static constexpr uint32_t LIMITE_TUNE_US = 110000;
@@ -67,6 +69,7 @@ class Si4713Seguro {
   bool getRev(uint8_t& revisao);
   bool getIntStatus(uint8_t& status);
   bool aguardarStc(uint32_t limiteUs);
+  bool concluirOperacaoStc(uint32_t limiteUs);
   bool executarComando(
       const uint8_t* comando,
       size_t tamanhoComando,

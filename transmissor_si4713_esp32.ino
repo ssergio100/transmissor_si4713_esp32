@@ -33,6 +33,33 @@ void executarAcao(
       }
       break;
 
+    case Menu::Acao::INICIAR_AJUSTE_FREQUENCIA:
+      if (!transmissor.iniciarAjusteFrequencia()) {
+        Serial.println("[AVISO] Nao foi possivel iniciar o ajuste de frequencia");
+      }
+      break;
+
+    case Menu::Acao::PREVISUALIZAR_FREQUENCIA:
+      if (!transmissor.previsualizarFrequencia(
+              configuracaoEditada.frequenciaKhz
+          )) {
+        Serial.println("[AVISO] Passo de frequencia nao aplicado");
+      }
+      break;
+
+    case Menu::Acao::APLICAR_FREQUENCIA:
+      if (transmissor.aplicarFrequencia(configuracaoEditada.frequenciaKhz)) {
+        Serial.printf(
+            "[NVS] Frequencia aplicada e salva: %u\n",
+            configuracaoEditada.frequenciaKhz
+        );
+        display.mostrarMensagem("Frequencia salva", "Transmissao restaurada");
+      } else {
+        Serial.println("[ERRO] Falha ao aplicar ou salvar frequencia");
+        display.mostrarMensagem("Falha na frequencia", "Verifique o log");
+      }
+      break;
+
     case Menu::Acao::SALVAR_CONFIGURACAO:
       if (transmissor.salvarConfiguracao()) {
         Serial.println("[NVS] Configuracao salva");
@@ -59,7 +86,7 @@ void executarAcao(
     case Menu::Acao::USAR_MELHOR_FREQUENCIA: {
       const uint16_t melhor = transmissor.melhorFrequencia();
       if (melhor != 0 && transmissor.aplicarFrequencia(melhor)) {
-        Serial.printf("[SCAN] Frequencia aplicada: %u\n", melhor);
+        Serial.printf("[SCAN] Frequencia aplicada e salva: %u\n", melhor);
       }
       break;
     }
@@ -74,13 +101,12 @@ void executarAcao(
   }
 }
 
-void processarControles() {
-  if (transmissor.telemetria().varreduraAtiva) {
-    const bool clique = controles.consumirClique();
-    const bool pressaoLonga = controles.consumirPressaoLonga();
-    const int8_t giro = controles.consumirGiro();
-    if (!clique && !pressaoLonga && giro == 0) return;
+bool processarControles() {
+  const Controles::Evento evento = controles.consumirEvento();
+  if (evento.tipo == Controles::TipoEvento::NENHUM) return false;
+  display.cancelarMensagem();
 
+  if (transmissor.telemetria().varreduraAtiva) {
     if (transmissor.cancelarVarredura()) {
       Serial.println("[SCAN] Varredura cancelada pelo encoder; TX restaurado");
     } else {
@@ -88,39 +114,47 @@ void processarControles() {
     }
 
     ConfiguracaoTransmissor editada = transmissor.copiarConfiguracao();
-    if (pressaoLonga) {
+    if (evento.tipo == Controles::TipoEvento::PRESSAO_LONGA) {
       executarAcao(menu.voltar(), editada);
-    } else if (giro != 0) {
-      executarAcao(menu.girar(giro, editada), editada);
+    } else if (evento.tipo == Controles::TipoEvento::GIRO) {
+      executarAcao(menu.girar(evento.deslocamento, editada), editada);
     }
-    return;
+    return true;
   }
 
   ConfiguracaoTransmissor editada = transmissor.copiarConfiguracao();
+  switch (evento.tipo) {
+    case Controles::TipoEvento::CLIQUE:
+      if (Configuracao::LOG_EVENTOS_ENCODER) {
+        Serial.printf(
+            "[ENCODER] clique curto: %lu ms\n",
+            static_cast<unsigned long>(evento.duracaoPressaoMs)
+        );
+      }
+      executarAcao(menu.selecionar(editada), editada);
+      break;
 
-  const bool clique = controles.consumirClique();
-  if (clique) {
-    if (Configuracao::LOG_EVENTOS_ENCODER) Serial.println("[ENCODER] clique");
-    executarAcao(menu.selecionar(editada), editada);
-    editada = transmissor.copiarConfiguracao();
-  }
+    case Controles::TipoEvento::PRESSAO_LONGA:
+      if (Configuracao::LOG_EVENTOS_ENCODER) {
+        Serial.printf(
+            "[ENCODER] pressao longa: %lu ms\n",
+            static_cast<unsigned long>(evento.duracaoPressaoMs)
+        );
+      }
+      executarAcao(menu.voltar(), editada);
+      break;
 
-  const bool pressaoLonga = controles.consumirPressaoLonga();
-  if (pressaoLonga) {
-    if (Configuracao::LOG_EVENTOS_ENCODER) {
-      Serial.println("[ENCODER] pressao longa");
-    }
-    executarAcao(menu.voltar(), editada);
-    editada = transmissor.copiarConfiguracao();
-  }
+    case Controles::TipoEvento::GIRO:
+      if (Configuracao::LOG_EVENTOS_ENCODER) {
+        Serial.printf("[ENCODER] giro=%d\n", evento.deslocamento);
+      }
+      executarAcao(menu.girar(evento.deslocamento, editada), editada);
+      break;
 
-  const int8_t giro = controles.consumirGiro();
-  if (giro != 0) {
-    if (Configuracao::LOG_EVENTOS_ENCODER) {
-      Serial.printf("[ENCODER] giro=%d\n", giro);
-    }
-    executarAcao(menu.girar(giro, editada), editada);
+    default:
+      break;
   }
+  return true;
 }
 
 void renderizarDisplay() {
@@ -162,6 +196,12 @@ void setup() {
       digitalRead(Configuracao::PIN_ENCODER_CLK),
       digitalRead(Configuracao::PIN_ENCODER_BOTAO)
   );
+  Serial.printf(
+      "[ENCODER] contrato: %u transicoes/passo, curto >=%u ms, longo >=%lu ms (evento na soltura)\n",
+      Configuracao::TRANSICOES_ENCODER_POR_DETENTE,
+      Configuracao::TEMPO_PRESSIONAMENTO_CURTO_MINIMO_MS,
+      static_cast<unsigned long>(Configuracao::TEMPO_PRESSIONAMENTO_LONGO_MS)
+  );
 
   if (display.iniciar()) {
     display.mostrarInicializacao();
@@ -195,12 +235,15 @@ void setup() {
 
 void loop() {
   controles.processar();
-  processarControles();
+  const bool controleProcessado = processarControles();
+  transmissor.setLeituraAudioDisplay(menu.tela() == Menu::Tela::MONITOR);
   transmissor.processar();
   Rede::processar();
+  api.processar();
 
   const uint32_t agora = millis();
-  if (agora - ultimaAtualizacaoDisplayMs
+  if (controleProcessado
+      || agora - ultimaAtualizacaoDisplayMs
       >= Configuracao::INTERVALO_ATUALIZACAO_DISPLAY_MS) {
     ultimaAtualizacaoDisplayMs = agora;
     renderizarDisplay();

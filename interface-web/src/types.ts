@@ -32,6 +32,11 @@ export interface SystemState {
   recoveries: number
   i2cCommunicationFailures: number
   rfStateMismatches: number
+  si4713InterruptPin: number
+  si4713InterruptCount: number
+  si4713LastInterruptMs: number
+  si4713LastInterrupt: 'none' | 'read_error' | 'overmodulation' | 'audio_high' | 'audio_low' | 'asq'
+  si4713InterruptPending: boolean
   scanRunning: boolean
   scanFinished: boolean
   scanProgress: number
@@ -41,6 +46,9 @@ export interface SystemState {
   timeValid: boolean
   uptimeMs: number
   firmwareVersion: string
+  frequencyMinKhz: number
+  frequencyMaxKhz: number
+  frequencyStepKhz: number
 }
 
 export interface DeviceState {

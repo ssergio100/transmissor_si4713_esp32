@@ -14,8 +14,13 @@ class RadioSi4713 {
 
   bool iniciar();
   bool aplicar(const ConfiguracaoTransmissor& configuracao);
+  bool iniciarAjusteFrequencia();
+  bool previsualizarFrequencia(uint16_t frequenciaKhz);
   bool reiniciarRf();
   void processar();
+  void setLeituraAudio(bool habilitar);
+  bool leituraAudioHabilitada() const;
+  bool reconhecerInterrupcao();
 
   bool iniciarVarredura();
   bool cancelarVarredura();
@@ -32,6 +37,7 @@ class RadioSi4713 {
   bool enderecoResponde(uint8_t endereco);
   bool recuperar();
   bool confirmarOperacao(bool resultado, const char* operacao, bool critica);
+  void processarInterrupcao();
   void resetFisico(bool registrar);
   void medirProximaFrequencia();
   bool restaurarAposVarredura();
@@ -51,13 +57,14 @@ class RadioSi4713 {
   bool configurado_ = false;
   bool recuperacaoPendente_ = false;
   bool recuperacaoRfPendente_ = false;
+  bool leituraAudioHabilitada_ = false;
+  bool transmissaoPausadaParaAjuste_ = false;
   uint8_t endereco_ = 0;
   uint8_t proximoEnderecoRecuperacao_ = SI4710_ADDR1;
   uint8_t tentativasRecuperacaoDesdeReset_ = 0;
   uint8_t falhasConsecutivas_ = 0;
   size_t indiceVarredura_ = 0;
   uint32_t ultimaLeituraAudioMs_ = 0;
-  uint32_t ultimaLeituraStatusMs_ = 0;
   uint32_t ultimaTentativaRecuperacaoMs_ = 0;
   uint32_t ultimaTentativaRecuperacaoRfMs_ = 0;
 };

@@ -35,27 +35,15 @@ void Api::iniciar() {
   servidor_.begin();
   websocket_.begin();
   websocket_.onEvent(tratarEventoWebSocket);
-  xTaskCreatePinnedToCore(
-      rodarServicoWeb,
-      "servico_web",
-      PILHA_TAREFA_WEB,
-      this,
-      1,
-      &tarefaWeb_,
-      0
-  );
-  Serial.println("[API] REST :80 / WS :81 em task dedicada (core 0)");
+  Serial.println("[API] REST na porta 80; WebSocket na porta 81");
 }
 
-void Api::rodarServicoWeb(void* parametro) {
-  auto* api = static_cast<Api*>(parametro);
-  for (;;) {
-    api->servidor_.handleClient();
-    api->websocket_.loop();
-    api->publicarTelemetriaAudio();
-    api->publicarEstadoSeMudou();
-    vTaskDelay(pdMS_TO_TICKS(1));
-  }
+void Api::processar() {
+  servidor_.handleClient();
+  websocket_.loop();
+  publicarTelemetriaAudio();
+  publicarEstadoSeMudou();
+  vigiarMonitorAudio();
 }
 
 void Api::registrarRotas() {
@@ -65,8 +53,20 @@ void Api::registrarRotas() {
   servidor_.on("/api/v1/settings/defaults", HTTP_POST, [this]() { restaurarPadroes(); });
   servidor_.on("/api/v1/tx", HTTP_POST, [this]() { controlarTransmissao(); });
   servidor_.on("/api/v1/tx/restart", HTTP_POST, [this]() { reiniciarRf(); });
+  servidor_.on("/api/v1/audio/monitor", HTTP_PUT, [this]() { atualizarMonitorAudio(); });
+  servidor_.on("/api/v1/audio/monitor", HTTP_GET, [this]() { responderMonitorAudio(); });
+  servidor_.on(
+      "/api/v1/si4713/interrupt/ack",
+      HTTP_POST,
+      [this]() { reconhecerInterrupcaoSi4713(); }
+  );
   servidor_.on("/api/v1/scan/start", HTTP_POST, [this]() { iniciarVarredura(); });
   servidor_.on("/api/v1/scan/results", HTTP_GET, [this]() { responderMedicoes(); });
+  servidor_.on(
+      "/api/v1/frequency/adjust",
+      HTTP_PUT,
+      [this]() { previsualizarFrequencia(); }
+  );
   servidor_.on("/api/v1/scan/apply", HTTP_POST, [this]() { aplicarFrequencia(); });
   servidor_.on("/api/v1/rds/phrases", HTTP_GET, [this]() { responderFrases(); });
   servidor_.on("/api/v1/rds/phrases", HTTP_PUT, [this]() { substituirFrases(); });
@@ -97,10 +97,7 @@ void Api::atualizarConfiguracao() {
     return;
   }
 
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::APLICAR_CONFIGURACAO;
-  comando.configuracao = configuracao;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.aplicarConfiguracao(configuracao)) {
     responderErro(409, "nao_aplicada", "Si4713 ocupado, ausente ou em varredura");
     return;
   }
@@ -108,9 +105,7 @@ void Api::atualizarConfiguracao() {
 }
 
 void Api::salvarConfiguracao() {
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::SALVAR_CONFIGURACAO;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.salvarConfiguracao()) {
     responderErro(500, "falha_persistencia", "Nao foi possivel salvar os ajustes");
     return;
   }
@@ -118,9 +113,7 @@ void Api::salvarConfiguracao() {
 }
 
 void Api::restaurarPadroes() {
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::RESTAURAR_PADROES;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.restaurarPadroes()) {
     responderErro(500, "falha_restauracao", "Nao foi possivel restaurar os padroes");
     return;
   }
@@ -137,10 +130,7 @@ void Api::controlarTransmissao() {
   ConfiguracaoTransmissor configuracao = transmissor_.copiarConfiguracao();
   configuracao.transmissaoHabilitada = documento["enabled"].as<bool>();
 
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::APLICAR_CONFIGURACAO;
-  comando.configuracao = configuracao;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.aplicarConfiguracao(configuracao)) {
     responderErro(409, "nao_aplicada", "Nao foi possivel alterar a transmissao");
     return;
   }
@@ -148,9 +138,7 @@ void Api::controlarTransmissao() {
 }
 
 void Api::reiniciarRf() {
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::REINICIAR_RF;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.reiniciarRf()) {
     responderErro(
         409,
         "rf_nao_restaurado",
@@ -161,10 +149,52 @@ void Api::reiniciarRf() {
   responderJson(200, criarJsonEstado());
 }
 
+void Api::atualizarMonitorAudio() {
+  JsonDocument documento;
+  if (!lerCorpoJson(documento)) return;
+  if (!documento["enabled"].is<bool>()) {
+    responderErro(422, "campo_invalido", "enabled deve ser booleano");
+    return;
+  }
+  const bool habilitar = documento["enabled"].as<bool>();
+  audioMonitorSolicitado_ = habilitar;
+  if (habilitar) {
+    ultimaConexaoAudioWsMs_ = millis();
+  }
+  transmissor_.setLeituraAudio(habilitar);
+  responderMonitorAudio();
+}
+
+void Api::responderMonitorAudio() {
+  const TelemetriaTransmissor& telemetria = transmissor_.telemetria();
+  JsonDocument documento;
+  documento["enabled"] = audioMonitorSolicitado_;
+  documento["active"] = transmissor_.leituraAudioHabilitada();
+  documento["requested"] = audioMonitorSolicitado_;
+  documento["sequence"] = telemetria.sequenciaAudio;
+  documento["levelDbfs"] = telemetria.nivelAudioDbfs;
+  documento["asq"] = telemetria.asq;
+  documento["overmodulation"] = (telemetria.asq & 0x04) != 0;
+  documento["onAir"] = telemetria.transmitindo;
+  String resposta;
+  serializeJson(documento, resposta);
+  responderJson(200, resposta);
+}
+
+void Api::reconhecerInterrupcaoSi4713() {
+  if (!transmissor_.reconhecerInterrupcaoSi4713()) {
+    responderErro(
+        409,
+        "interrupcao_nao_reconhecida",
+        "O Si4713 esta indisponivel ou nao confirmou o INTACK"
+    );
+    return;
+  }
+  responderJson(200, criarJsonEstado());
+}
+
 void Api::iniciarVarredura() {
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::INICIAR_VARREDURA;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.iniciarVarredura()) {
     responderErro(409, "varredura_indisponivel", "Si4713 ocupado ou ausente");
     return;
   }
@@ -189,6 +219,33 @@ void Api::responderMedicoes() {
   responderJson(200, resposta);
 }
 
+void Api::previsualizarFrequencia() {
+  JsonDocument documento;
+  if (!lerCorpoJson(documento)) return;
+  if (!documento["frequencyKhz"].is<uint16_t>()) {
+    responderErro(422, "campo_invalido", "frequencyKhz e obrigatorio");
+    return;
+  }
+
+  const uint16_t frequenciaKhz = documento["frequencyKhz"].as<uint16_t>();
+  if (frequenciaKhz < Configuracao::FREQUENCIA_MINIMA_KHZ
+      || frequenciaKhz > Configuracao::FREQUENCIA_MAXIMA_KHZ
+      || frequenciaKhz % Configuracao::PASSO_FREQUENCIA_KHZ != 0) {
+    responderErro(422, "frequencia_invalida", "Frequencia fora da faixa ou do passo permitido");
+    return;
+  }
+
+  if (!transmissor_.previsualizarFrequencia(frequenciaKhz)) {
+    responderErro(
+        409,
+        "frequencia_nao_ajustada",
+        "Nao foi possivel pausar o TX ou aplicar o passo de frequencia"
+    );
+    return;
+  }
+  responderJson(200, criarJsonEstado());
+}
+
 void Api::aplicarFrequencia() {
   JsonDocument documento;
   if (!lerCorpoJson(documento)) return;
@@ -201,18 +258,24 @@ void Api::aplicarFrequencia() {
   if (frequenciaKhz < Configuracao::FREQUENCIA_MINIMA_KHZ
       || frequenciaKhz > Configuracao::FREQUENCIA_MAXIMA_KHZ
       || frequenciaKhz % Configuracao::PASSO_FREQUENCIA_KHZ != 0) {
+    char detalhe[64];
+    snprintf(
+        detalhe,
+        sizeof(detalhe),
+        "Use uma frequencia entre %.1f e %.1f MHz, em passos de %.1f MHz",
+        Configuracao::FREQUENCIA_MINIMA_KHZ / 100.0f,
+        Configuracao::FREQUENCIA_MAXIMA_KHZ / 100.0f,
+        Configuracao::PASSO_FREQUENCIA_KHZ / 100.0f
+    );
     responderErro(
         422,
         "frequencia_invalida",
-        "Use uma frequencia entre 87,5 e 108,0 MHz, em passos de 0,1 MHz"
+        detalhe
     );
     return;
   }
 
-  ComandoTransmissor comando;
-  comando.tipo = ComandoTipo::APLICAR_FREQUENCIA;
-  comando.frequenciaKhz = frequenciaKhz;
-  if (!transmissor_.enviarComando(comando)) {
+  if (!transmissor_.aplicarFrequencia(frequenciaKhz)) {
     responderErro(
         409,
         "frequencia_nao_aplicada",
@@ -271,6 +334,7 @@ void Api::abrirPortalWifi() {
 }
 
 void Api::responderSaude() {
+  const TelemetriaTransmissor& telemetria = transmissor_.telemetria();
   JsonDocument documento;
   documento["firmwareVersion"] = Configuracao::VERSAO_FIRMWARE;
   documento["uptimeMs"] = millis();
@@ -281,13 +345,18 @@ void Api::responderSaude() {
   documento["ip"] = Rede::enderecoIp();
   documento["rssi"] = Rede::conectada() ? WiFi.RSSI() : 0;
   documento["timeValid"] = transmissor_.horaValida();
-  documento["si4713Available"] = transmissor_.telemetria().si4713Disponivel;
-  documento["recovering"] = transmissor_.telemetria().recuperando;
-  documento["recoveries"] = transmissor_.telemetria().recuperacoes;
-  documento["i2cCommunicationFailures"] =
-      transmissor_.telemetria().falhasComunicacao;
-  documento["rfStateMismatches"] =
-      transmissor_.telemetria().inconsistenciasRf;
+  documento["si4713Available"] = telemetria.si4713Disponivel;
+  documento["recovering"] = telemetria.recuperando;
+  documento["recoveries"] = telemetria.recuperacoes;
+  documento["i2cCommunicationFailures"] = telemetria.falhasComunicacao;
+  documento["rfStateMismatches"] = telemetria.inconsistenciasRf;
+  documento["si4713InterruptPin"] = Configuracao::PIN_INTERRUPCAO_SI4713;
+  documento["si4713InterruptCount"] = telemetria.interrupcoesSi4713;
+  documento["si4713LastInterruptMs"] =
+      telemetria.ultimaInterrupcaoSi4713Ms;
+  documento["si4713LastInterrupt"] = nomeEventoSi4713(telemetria);
+  documento["si4713InterruptPending"] =
+      telemetria.alarmeInterrupcaoSi4713Pendente;
   String resposta;
   serializeJson(documento, resposta);
   responderJson(200, resposta);
@@ -423,6 +492,13 @@ String Api::serializarEstado(bool comTipo) const {
   sistema["recoveries"] = telemetria.recuperacoes;
   sistema["i2cCommunicationFailures"] = telemetria.falhasComunicacao;
   sistema["rfStateMismatches"] = telemetria.inconsistenciasRf;
+  sistema["si4713InterruptPin"] = Configuracao::PIN_INTERRUPCAO_SI4713;
+  sistema["si4713InterruptCount"] = telemetria.interrupcoesSi4713;
+  sistema["si4713LastInterruptMs"] =
+      telemetria.ultimaInterrupcaoSi4713Ms;
+  sistema["si4713LastInterrupt"] = nomeEventoSi4713(telemetria);
+  sistema["si4713InterruptPending"] =
+      telemetria.alarmeInterrupcaoSi4713Pendente;
   sistema["scanRunning"] = telemetria.varreduraAtiva;
   sistema["scanFinished"] = telemetria.varreduraConcluida;
   sistema["scanProgress"] = telemetria.progressoVarredura;
@@ -432,6 +508,9 @@ String Api::serializarEstado(bool comTipo) const {
   sistema["timeValid"] = transmissor_.horaValida();
   sistema["uptimeMs"] = millis();
   sistema["firmwareVersion"] = Configuracao::VERSAO_FIRMWARE;
+  sistema["frequencyMinKhz"] = Configuracao::FREQUENCIA_MINIMA_KHZ;
+  sistema["frequencyMaxKhz"] = Configuracao::FREQUENCIA_MAXIMA_KHZ;
+  sistema["frequencyStepKhz"] = Configuracao::PASSO_FREQUENCIA_KHZ;
 
   String resposta;
   serializeJson(documento, resposta);
@@ -476,6 +555,23 @@ void Api::publicarEstadoSeMudou() {
   websocket_.broadcastTXT(mensagem);
 }
 
+void Api::vigiarMonitorAudio() {
+  if (!audioMonitorSolicitado_) return;
+  const uint32_t agora = millis();
+  if (websocket_.connectedClients() > 0) {
+    ultimaConexaoAudioWsMs_ = agora;
+    return;
+  }
+  if (agora - ultimaConexaoAudioWsMs_
+      >= Configuracao::TEMPO_AUTO_DESATIVAR_AUDIO_MS) {
+    audioMonitorSolicitado_ = false;
+    transmissor_.setLeituraAudio(false);
+    Serial.println(
+        "[AUDIO] solicitacao web encerrada: sem cliente WebSocket"
+    );
+  }
+}
+
 uint32_t Api::assinaturaEstado() const {
   const ConfiguracaoTransmissor& configuracao = transmissor_.configuracao();
   const TelemetriaTransmissor& telemetria = transmissor_.telemetria();
@@ -514,6 +610,11 @@ uint32_t Api::assinaturaEstado() const {
   dobra(telemetria.varreduraConcluida);
   dobra(telemetria.progressoVarredura);
   dobra(telemetria.recuperacoes);
+  dobra(telemetria.interrupcoesSi4713);
+  dobra(telemetria.ultimaInterrupcaoSi4713Ms);
+  dobra(telemetria.ultimoEventoAsq);
+  dobra(telemetria.ultimaInterrupcaoLida);
+  dobra(telemetria.alarmeInterrupcaoSi4713Pendente);
   return assinatura;
 }
 

@@ -103,3 +103,12 @@ bool converterFonteRadioText(const char* texto, FonteRadioText& fonte) {
   }
   return true;
 }
+
+const char* nomeEventoSi4713(const TelemetriaTransmissor& telemetria) {
+  if (telemetria.interrupcoesSi4713 == 0) return "none";
+  if (!telemetria.ultimaInterrupcaoLida) return "read_error";
+  if ((telemetria.ultimoEventoAsq & 0x04) != 0) return "overmodulation";
+  if ((telemetria.ultimoEventoAsq & 0x02) != 0) return "audio_high";
+  if ((telemetria.ultimoEventoAsq & 0x01) != 0) return "audio_low";
+  return "asq";
+}

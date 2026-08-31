@@ -115,10 +115,12 @@ fieldset input { min-height: auto; accent-color: var(--green); }
 .vu-reading strong { font: 600 27px IBM Plex Mono, monospace; }
 .vu-reading small { color: var(--muted); font-size: 10px; }
 .vu-scale { display: flex; justify-content: space-between; color: #9eb0bc; font: 500 9px IBM Plex Mono, monospace; margin: 20px 0 6px; }
-.vu-track { height: 24px; position: relative; background: linear-gradient(to right, #152d26 0 67%, #382e18 67% 88%, #3a171b 88%); border: 1px solid #3e5361; overflow: hidden; }
+.vu-track { height: 24px; position: relative; background: linear-gradient(to right, #152d26 0 67%, #382e18 67% 80%, #3a171b 80% 100%); border: 1px solid #3e5361; overflow: hidden; }
 .vu-track::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(to right, transparent 0 5px, #08131d 5px 7px); }
-.vu-fill { height: 100%; background: linear-gradient(to right, #42d77d 0 72%, #efb72f 72% 92%, #ed4c4c 92%); transition: width 90ms linear; }
+.vu-fill { height: 100%; background-image: linear-gradient(to right, #42d77d 0 67%, #efb72f 67% 80%, #ed4c4c 80% 100%); background-position: left center; background-repeat: no-repeat; transition: width 90ms linear; }
 .vu-peak { position: absolute; top: -5px; bottom: -5px; width: 2px; background: white; z-index: 2; box-shadow: 0 0 7px white; transition: left 90ms linear; }
+.vu-track.overmodulating { border-color: #ed4c4c; box-shadow: 0 0 0 1px rgba(237,76,76,.28), 0 0 16px rgba(237,76,76,.2); }
+.vu-track.overmodulating .vu-peak { background: #ffb0b5; box-shadow: 0 0 8px #ed4c4c; }
 .vu-meta { display: flex; justify-content: space-between; margin-top: 14px; color: var(--muted); font-size: 10px; }
 .vu-meta strong { color: var(--green); }
 .danger-text { color: var(--red) !important; }
@@ -126,11 +128,15 @@ fieldset input { min-height: auto; accent-color: var(--green); }
 .audio-notes > div { display: flex; gap: 10px; color: #7e94a3; }
 .audio-notes span { display: flex; flex-direction: column; gap: 3px; font-size: 10px; }
 .audio-notes strong { color: #c4d1da; font-size: 11px; }
+.audio-disabled { flex: 1; min-height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); border: 1px dashed #294151; text-align: center; padding: 20px; }
+.audio-disabled svg { color: #7f95a4; }
+.audio-disabled span { font-size: 11px; color: #c4d1da; }
+.audio-disabled small { font-size: 9px; }
 
 .switch-line { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; margin-bottom: 11px; }
-.switch-line > span { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.switch-line > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
 .switch-line small { color: var(--muted); font-size: 9px; }
-.switch { appearance: none; width: 40px; min-height: 20px; height: 20px; border: 1px solid #496071; border-radius: 10px; padding: 0; position: relative; cursor: pointer; }
+.switch { appearance: none; width: 40px; min-height: 20px; height: 20px; border: 1px solid #496071; border-radius: 10px; padding: 0; position: relative; cursor: pointer; flex: 0 0 auto; }
 .switch::after { content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%; top: 2px; left: 3px; background: #8ca0ae; transition: left .15s; }
 .switch:checked { background: #215b42; border-color: #36a96b; }
 .switch:checked::after { left: 21px; background: #69e49b; }

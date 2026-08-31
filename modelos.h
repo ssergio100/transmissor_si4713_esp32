@@ -68,7 +68,13 @@ struct TelemetriaTransmissor {
   uint32_t falhasComunicacao = 0;
   uint32_t inconsistenciasRf = 0;
   uint32_t sequenciaAudio = 0;
+  uint32_t interrupcoesSi4713 = 0;
+  uint32_t ultimaInterrupcaoSi4713Ms = 0;
+  uint8_t ultimoEventoAsq = 0;
+  bool ultimaInterrupcaoLida = false;
+  bool alarmeInterrupcaoSi4713Pendente = false;
 };
 
 const char* nomeFonteRadioText(FonteRadioText fonte);
 bool converterFonteRadioText(const char* texto, FonteRadioText& fonte);
+const char* nomeEventoSi4713(const TelemetriaTransmissor& telemetria);

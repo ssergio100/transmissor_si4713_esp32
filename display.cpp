@@ -7,7 +7,6 @@
 
 namespace {
 
-constexpr uint8_t BLOCO_SOMBREADO = 0;
 constexpr uint8_t ASQ_SOBREMODULACAO = 0x04;
 
 }  // namespace
@@ -25,11 +24,6 @@ bool Display::iniciar() {
 
   lcd_.init();
   lcd_.backlight();
-  uint8_t bloco[8] = {
-      0b10101, 0b01010, 0b10101, 0b01010,
-      0b10101, 0b01010, 0b10101, 0b01010
-  };
-  lcd_.createChar(BLOCO_SOMBREADO, bloco);
   lcd_.clear();
   invalidarCache();
   pronto_ = true;
@@ -48,10 +42,15 @@ void Display::mostrarInicializacao() {
 
 void Display::mostrarMensagem(const char* linha1, const char* linha2) {
   if (!pronto_) return;
+  mensagemAteMs_ = millis() + Configuracao::TEMPO_MENSAGEM_DISPLAY_MS;
   escreverLinha(0, linha1);
   escreverLinha(1, linha2 == nullptr ? "" : linha2);
   escreverLinha(2, "");
   escreverLinha(3, "");
+}
+
+void Display::cancelarMensagem() {
+  mensagemAteMs_ = 0;
 }
 
 void Display::renderizar(
@@ -62,13 +61,11 @@ void Display::renderizar(
     uint8_t melhorRuido
 ) {
   if (!pronto_) return;
-
-  const uint32_t agora = millis();
-  if (agora - ultimaRessincronizacaoMs_
-      >= Configuracao::INTERVALO_STATUS_SI4713_MS) {
-    ultimaRessincronizacaoMs_ = agora;
-    invalidarCache();
+  if (mensagemAteMs_ != 0
+      && static_cast<int32_t>(mensagemAteMs_ - millis()) > 0) {
+    return;
   }
+  mensagemAteMs_ = 0;
 
   if (telemetria.recuperando) {
     mostrarMensagem("Recuperando Si4713", "Aguarde...");
@@ -137,21 +134,8 @@ void Display::mostrarPrincipal(
   );
   escreverLinha(1, texto);
 
-  if (telemetria.transmitindo) {
-    const char* estado = (telemetria.asq & ASQ_SOBREMODULACAO) != 0
-        || telemetria.nivelAudioDbfs >= 0 ? "CLIP" : "OK";
-    snprintf(
-        texto,
-        sizeof(texto),
-        "AUDIO %4d dBFS %s",
-        telemetria.nivelAudioDbfs,
-        estado
-    );
-  } else {
-    snprintf(texto, sizeof(texto), "AUDIO   -- dBFS");
-  }
-  escreverLinha(2, texto);
-  mostrarBarraAudio(telemetria.nivelAudioDbfs, telemetria.transmitindo);
+  escreverLinha(2, "Audio: abra Monitor");
+  escreverLinha(3, "Clique para o menu");
 }
 
 void Display::mostrarRaiz(uint8_t item) {
@@ -280,32 +264,26 @@ void Display::mostrarRds(
 
 void Display::mostrarMonitor(const TelemetriaTransmissor& telemetria) {
   char texto[21];
-  escreverLinha(0, "MONITOR SI4713");
-  snprintf(
-      texto,
-      sizeof(texto),
-      "FM:%u.%02u PWR:%u",
-      telemetria.frequenciaEfetivaKhz / 100,
-      telemetria.frequenciaEfetivaKhz % 100,
-      telemetria.potenciaEfetivaDbuv
-  );
-  escreverLinha(1, texto);
-  snprintf(
-      texto,
-      sizeof(texto),
-      "Audio:%d ASQ:%02X",
-      telemetria.nivelAudioDbfs,
-      telemetria.asq
-  );
-  escreverLinha(2, texto);
-  snprintf(
-      texto,
-      sizeof(texto),
-      "ANT:%u.%02u pF Seg:Vol",
-      telemetria.capacitanciaEfetiva / 4,
-      (telemetria.capacitanciaEfetiva % 4) * 25
-  );
-  escreverLinha(3, texto);
+  escreverLinha(0, "MONITOR DE AUDIO");
+  if (telemetria.transmitindo) {
+    snprintf(
+        texto,
+        sizeof(texto),
+        "Nivel: %4d dBFS",
+        telemetria.nivelAudioDbfs
+    );
+    escreverLinha(1, texto);
+    escreverLinha(
+        2,
+        (telemetria.asq & ASQ_SOBREMODULACAO) != 0
+            ? "Estado: CORTE"
+            : "Estado: OK"
+    );
+  } else {
+    escreverLinha(1, "Nivel:  -- dBFS");
+    escreverLinha(2, "Estado: TX desligado");
+  }
+  escreverLinha(3, "Clique/Segure: sair");
 }
 
 void Display::mostrarVarredura(
@@ -369,34 +347,6 @@ void Display::mostrarSistema(uint8_t item) {
   escreverLinha(3, "Gire  Clique: Sel");
 }
 
-void Display::mostrarBarraAudio(int8_t nivelDbfs, bool valido) {
-  uint8_t preenchidos = 0;
-  if (valido) {
-    const int nivel = constrain(nivelDbfs, -70, 0);
-    preenchidos = static_cast<uint8_t>(
-        (static_cast<int32_t>(nivel + 70) * Configuracao::LCD_COLUNAS + 35) / 70
-    );
-  }
-  uint8_t barra[Configuracao::LCD_COLUNAS];
-  for (uint8_t coluna = 0; coluna < Configuracao::LCD_COLUNAS; coluna++) {
-    barra[coluna] = coluna < preenchidos
-        ? static_cast<uint8_t>(0xFF)
-        : BLOCO_SOMBREADO;
-  }
-  if (barraRenderizadaValida_
-      && memcmp(barra, barraRenderizada_, sizeof(barra)) == 0) {
-    return;
-  }
-
-  lcd_.setCursor(0, 3);
-  for (uint8_t coluna = 0; coluna < Configuracao::LCD_COLUNAS; coluna++) {
-    lcd_.write(barra[coluna]);
-  }
-  memcpy(barraRenderizada_, barra, sizeof(barra));
-  barraRenderizadaValida_ = true;
-  linhasRenderizadas_[3][0] = '\0';
-}
-
 void Display::mostrarCabecalho(
     const char* titulo,
     uint8_t item,
@@ -434,11 +384,8 @@ void Display::escreverLinha(uint8_t linha, const char* texto) {
       completa,
       Configuracao::LCD_COLUNAS + 1
   );
-  if (linha == 3) barraRenderizadaValida_ = false;
 }
 
 void Display::invalidarCache() {
   memset(linhasRenderizadas_, 0, sizeof(linhasRenderizadas_));
-  memset(barraRenderizada_, 0, sizeof(barraRenderizada_));
-  barraRenderizadaValida_ = false;
 }

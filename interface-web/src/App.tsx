@@ -48,15 +48,16 @@ function Panel({ title, icon, className, children }: {
   )
 }
 
-function NumericField({ label, value, min, max, step = 1, suffix, onChange }: {
+function NumericField({ label, value, min, max, step = 1, suffix, onChange, onFocus }: {
   label: string; value: number; min: number; max: number; step?: number; suffix: string
   onChange: (value: number) => void
+  onFocus?: () => void
 }) {
   return (
     <label className="field numeric-field">
       <span>{label}</span>
       <span className="input-with-unit">
-        <input type="number" value={value} min={min} max={max} step={step}
+        <input type="number" value={value} min={min} max={max} step={step} onFocus={onFocus}
           onChange={(event) => onChange(Number(event.target.value))} />
         <b>{suffix}</b>
       </span>
@@ -95,23 +96,29 @@ function AntennaCapField({ value, effective, onChange }: {
 
 function VuMeter({ level, asq, overmodulation }: { level: number; asq: number; overmodulation: boolean }) {
   const normalized = Math.max(0, Math.min(100, ((level + 60) / 60) * 100))
+  const asqHex = `0x${asq.toString(16).toUpperCase().padStart(2, '0')}`
+  const escalaPreenchimento = normalized > 0 ? `${10000 / normalized}% 100%` : '100% 100%'
   return (
     <div className="vu" aria-label={`Nível de áudio ${level} dBFS`}>
-      <div className="vu-reading"><span>Nível instantâneo</span><strong>{level} <small>dBFS</small></strong></div>
+      <div className="vu-reading"><span>Nível instantâneo da entrada</span><strong>{level} <small>dBFS</small></strong></div>
       <div className="vu-scale"><span>-60</span><span>-40</span><span>-20</span><span>-12</span><span>-6</span><span>-3</span><span>0</span></div>
-      <div className="vu-track">
-        <div className="vu-fill" style={{ width: `${normalized}%` }} />
+      <div className={cn('vu-track', overmodulation && 'overmodulating')}>
+        <div className="vu-fill" style={{ width: `${normalized}%`, backgroundSize: escalaPreenchimento }} />
         <div className="vu-peak" style={{ left: `calc(${normalized}% - 1px)` }} />
       </div>
       <div className="vu-meta">
-        <span>Estimativa ASQ do Si4713 · 4 Hz</span>
-        <strong className={overmodulation ? 'danger-text' : ''}>{overmodulation ? 'Sobremodulação' : `ASQ ${asq}%`}</strong>
+        <span>Estado ASQ {asqHex} · atualização 4 Hz</span>
+        <strong className={overmodulation ? 'danger-text' : ''}>{overmodulation ? 'CORTE / sobremodulação' : 'Nível sem corte'}</strong>
       </div>
     </div>
   )
 }
 
-function ScanChart({ measurements }: { measurements: Measurement[] }) {
+function ScanChart({ measurements, minKhz, maxKhz }: {
+  measurements: Measurement[]
+  minKhz: number
+  maxKhz: number
+}) {
   if (!measurements.length) return <div className="chart-empty">A varredura preencherá o espectro de ruído.</div>
   const width = 640
   const height = 132
@@ -121,13 +128,18 @@ function ScanChart({ measurements }: { measurements: Measurement[] }) {
     const y = height - (item.noiseLevel / maxNoise) * (height - 10)
     return `${x.toFixed(1)},${y.toFixed(1)}`
   }).join(' ')
+  const span = maxKhz - minKhz
+  const labels = [0, 1, 2, 3, 4].map((part) => {
+    const khz = minKhz + (span * part) / 4
+    return khz === maxKhz ? `${mhz(khz)} MHz` : mhz(khz)
+  })
   return (
     <div className="scan-chart">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Nível de ruído por frequência">
         {[0, 1, 2, 3].map((line) => <line key={line} x1="0" x2={width} y1={line * 40 + 6} y2={line * 40 + 6} className="grid-line" />)}
         <polyline points={points} className="noise-line" />
       </svg>
-      <div className="chart-axis"><span>87,5</span><span>92,5</span><span>97,5</span><span>102,5</span><span>108,0 MHz</span></div>
+      <div className="chart-axis">{labels.map((label) => <span key={label}>{label}</span>)}</div>
     </div>
   )
 }
@@ -166,6 +178,7 @@ export default function App() {
   const [phrases, setPhrases] = useState<string[]>([])
   const [phraseDialog, setPhraseDialog] = useState(false)
   const [audio, setAudio] = useState({ level: -60, asq: 0, overmodulation: false })
+  const [audioReadingEnabled, setAudioReadingEnabled] = useState(false)
   const [clock, setClock] = useState(new Date())
   const [busy, setBusy] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
@@ -175,6 +188,9 @@ export default function App() {
   const connectionStatusRef = useRef<api.ConnectionStatus>('connecting')
   const falhaConexaoNotificada = useRef(false)
   const usuarioEditandoRef = useRef(false)
+  const aplicacaoAtivaRef = useRef(true)
+  const audioReadingEnabledRef = useRef(false)
+  const filaAjusteFrequenciaRef = useRef<Promise<void>>(Promise.resolve())
 
   const notify = (kind: 'ok' | 'error', text: string) => {
     setNotice({ kind, text })
@@ -186,31 +202,31 @@ export default function App() {
     setConnectionStatus(status)
   }
 
+  const incorporarEstado = (next: DeviceState) => {
+    if (ultimoUptimeMs.current !== null
+        && next.system.uptimeMs < ultimoUptimeMs.current) {
+      notify('ok', 'ESP32 reiniciado e reconectado')
+    }
+    ultimoUptimeMs.current = next.system.uptimeMs
+    setDevice(next)
+    if (!usuarioEditandoRef.current) setDraft(next.desired)
+    if (!next.system.scanRunning && !next.system.scanFinished) {
+      scanCarregadoDoDispositivo.current = false
+      setScan(emptyScan)
+    } else if (next.system.scanFinished
+        && !scanCarregadoDoDispositivo.current) {
+      scanCarregadoDoDispositivo.current = true
+      void api.getScan().then((resultado) => {
+        if (aplicacaoAtivaRef.current) setScan(resultado)
+      }).catch(() => {
+        scanCarregadoDoDispositivo.current = false
+      })
+    }
+  }
+
   useEffect(() => {
     let active = true
-
-    const incorporarEstado = (next: DeviceState) => {
-      if (ultimoUptimeMs.current !== null
-          && next.system.uptimeMs < ultimoUptimeMs.current) {
-        notify('ok', 'ESP32 reiniciado e reconectado')
-      }
-      ultimoUptimeMs.current = next.system.uptimeMs
-      setDevice(next)
-      if (!usuarioEditandoRef.current) setDraft(next.desired)
-      if (!next.system.scanRunning && !next.system.scanFinished) {
-        scanCarregadoDoDispositivo.current = false
-        setScan(emptyScan)
-      } else if (next.system.scanFinished
-          && !scanCarregadoDoDispositivo.current) {
-        scanCarregadoDoDispositivo.current = true
-        void api.getScan().then((resultado) => {
-          if (active) setScan(resultado)
-        }).catch(() => {
-          scanCarregadoDoDispositivo.current = false
-        })
-      }
-    }
-
+    aplicacaoAtivaRef.current = true
     const load = async () => {
       try {
         const next = await api.getState()
@@ -232,8 +248,14 @@ export default function App() {
     void api.getPhrases().then((items) => active && setPhrases(items))
     const poll = window.setInterval(load, 2500)
     const timer = window.setInterval(() => setClock(new Date()), 1000)
+    return () => { active = false; aplicacaoAtivaRef.current = false; window.clearInterval(poll); window.clearInterval(timer) }
+  }, [])
+
+  useEffect(() => {
+    let active = true
     const unsubscribe = api.subscribeAudio(
       (item) => {
+        if (!active || !audioReadingEnabledRef.current) return
         setAudio({
           level: item.levelDbfs,
           asq: item.asq,
@@ -252,12 +274,30 @@ export default function App() {
       (status) => {
         if (!active) return
         atualizarConexao(status)
-        if (status === 'online') void load()
+        if (status === 'online') {
+          void api.getState().then((next) => {
+            if (active) incorporarEstado(next)
+          })
+          if (audioReadingEnabledRef.current && !api.usingMock) {
+            void api.setAudioMonitoring(true)
+          }
+        }
       },
       (next) => { if (active) incorporarEstado(next) },
     )
-    return () => { active = false; window.clearInterval(poll); window.clearInterval(timer); unsubscribe() }
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [])
+
+  useEffect(() => {
+    audioReadingEnabledRef.current = audioReadingEnabled
+    if (!audioReadingEnabled) {
+      setAudio({ level: -60, asq: 0, overmodulation: false })
+    }
+    if (!api.usingMock) void api.setAudioMonitoring(audioReadingEnabled)
+  }, [audioReadingEnabled])
 
   useEffect(() => {
     if (!device?.system.scanRunning && !scan.running) return
@@ -308,12 +348,46 @@ export default function App() {
   const hasPendingRf = draft.frequencyKhz !== device.applied.frequencyKhz
     || draft.powerDbuv !== device.applied.powerDbuv
     || antennaPending
+  const freqMinMhz = device.system.frequencyMinKhz / 100
+  const freqMaxMhz = device.system.frequencyMaxKhz / 100
+  const freqStepMhz = device.system.frequencyStepKhz / 100
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     usuarioEditandoRef.current = true
     setDraft((current) => current ? { ...current, [key]: value } : current)
   }
+  const ajustarFrequencia = (valorMhz: number) => {
+    const frequenciaKhz = Math.round(valorMhz * 100)
+    set('frequencyKhz', frequenciaKhz)
+    if (frequenciaKhz < device.system.frequencyMinKhz
+        || frequenciaKhz > device.system.frequencyMaxKhz
+        || frequenciaKhz % device.system.frequencyStepKhz !== 0) {
+      return
+    }
+
+    filaAjusteFrequenciaRef.current = filaAjusteFrequenciaRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const next = await api.previewFrequency(frequenciaKhz)
+        if (aplicacaoAtivaRef.current) setDevice(next)
+      })
+      .catch((error) => {
+        notify('error', error instanceof Error ? error.message : 'Não foi possível ajustar a frequência')
+      })
+  }
+  const aplicarAjustes = async () => {
+    await filaAjusteFrequenciaRef.current
+    return api.applySettings(draft)
+  }
   const conectado = api.usingMock || connectionStatus === 'online'
   const noAr = conectado && device.applied.onAir
+  const eventoSi4713 = {
+    none: 'Nenhuma interrupção registrada',
+    read_error: 'Interrupção detectada; falha ao consultar a causa',
+    overmodulation: 'Sobremodulação detectada',
+    audio_high: 'Nível de áudio cruzou o limite alto',
+    audio_low: 'Nível de áudio cruzou o limite baixo',
+    asq: 'Evento ASQ detectado',
+  }[device.system.si4713LastInterrupt]
 
   return (
     <div className="app-shell">
@@ -343,7 +417,7 @@ export default function App() {
           <Panel title="RF / transmissão" icon={<SlidersHorizontal size={18} />} className="rf-panel">
             <div className="desired-heading"><span>Ajuste desejado</span><span>Aplicado</span></div>
             <div className="rf-fields">
-              <NumericField label="Frequência" value={draft.frequencyKhz / 100} min={87.5} max={108} step={0.1} suffix="MHz" onChange={(value) => set('frequencyKhz', Math.round(value * 100))} />
+              <NumericField label="Frequência" value={draft.frequencyKhz / 100} min={freqMinMhz} max={freqMaxMhz} step={freqStepMhz} suffix="MHz" onFocus={() => ajustarFrequencia(draft.frequencyKhz / 100)} onChange={ajustarFrequencia} />
               <span className={cn('applied-value', draft.frequencyKhz !== device.applied.frequencyKhz && 'pending')}>{mhz(device.applied.frequencyKhz)} MHz</span>
               <NumericField label="Potência" value={draft.powerDbuv} min={88} max={115} suffix="dBµV" onChange={(value) => set('powerDbuv', value)} />
               <span className={cn('applied-value', draft.powerDbuv !== device.applied.powerDbuv && 'pending')}>{device.applied.powerDbuv} dBµV</span>
@@ -357,7 +431,7 @@ export default function App() {
               <fieldset><legend>Pré‑ênfase</legend><label><input type="radio" checked={draft.preemphasisUs === 50} onChange={() => set('preemphasisUs', 50)} /> 50 µs</label><label><input type="radio" checked={draft.preemphasisUs === 75} onChange={() => set('preemphasisUs', 75)} /> 75 µs</label></fieldset>
               <NumericField label="Desvio de áudio" value={draft.audioDeviationKhz} min={50} max={66} suffix="kHz" onChange={(value) => set('audioDeviationKhz', value)} />
             </div>
-            <button className={cn('button full', hasPendingRf ? 'primary' : 'secondary')} disabled={busy !== null} onClick={() => run('apply', () => api.applySettings(draft), 'Ajustes aplicados no Si4713')}><Check size={17} /> Aplicar ajustes</button>
+            <button className={cn('button full', hasPendingRf ? 'primary' : 'secondary')} disabled={busy !== null} onClick={() => run('apply', aplicarAjustes, 'Ajustes aplicados; frequência salva')}><Check size={17} /> Aplicar ajustes</button>
             <div className="tx-actions">
               <button className={cn('button tx-button', draft.txEnabled && 'stop')} disabled={busy !== null || !conectado} onClick={() => run('tx', () => api.setTransmission(!draft.txEnabled), draft.txEnabled ? 'Transmissão encerrada' : 'Transmissão solicitada')}>
                 {draft.txEnabled ? <X size={18} /> : <Radio size={18} />} {draft.txEnabled ? 'Encerrar transmissão' : 'Iniciar transmissão'}
@@ -370,10 +444,19 @@ export default function App() {
           </Panel>
 
           <Panel title="Áudio" icon={<Activity size={18} />} className="audio-panel">
-            <VuMeter level={noAr ? audio.level : -60} asq={noAr ? audio.asq : 0} overmodulation={noAr && audio.overmodulation} />
+            <label className="switch-line"><span><strong>Leitura de áudio</strong><small>Leitura ASQ periódica por solicitação; desligada, só há consulta quando GP2 sinaliza um evento</small></span><input className="switch" type="checkbox" checked={audioReadingEnabled} onChange={(event) => setAudioReadingEnabled(event.target.checked)} /></label>
+            {audioReadingEnabled ? (
+              <VuMeter level={noAr ? audio.level : -60} asq={noAr ? audio.asq : 0} overmodulation={noAr && audio.overmodulation} />
+            ) : (
+              <div className="audio-disabled"><Activity size={22} /><span>Leitura de áudio desativada</span><small>Ative a chave acima para retomar o medidor de nível</small></div>
+            )}
             <div className="audio-notes">
-              <div><Gauge size={18} /><span><strong>Leitura contínua</strong>WebSocket dedicado, atualização a cada 250 ms</span></div>
-              <div><CircleAlert size={18} /><span><strong>Limitação conhecida</strong>ASQ mede a entrada de áudio e não confirma a portadora RF</span></div>
+              <div><Gauge size={18} /><span><strong>Leitura contínua</strong>WebSocket dedicado, atualização a cada 250 ms{!audioReadingEnabled && ' · desativada'}</span></div>
+              <div className={device.system.si4713InterruptPending ? 'danger-text' : ''}><Zap size={18} /><span><strong>GP2/INT · GPIO {device.system.si4713InterruptPin}</strong>{eventoSi4713}{device.system.si4713InterruptCount > 0 && ` · evento #${device.system.si4713InterruptCount}`}{device.system.si4713InterruptPending && ' · aguardando reconhecimento'}</span></div>
+              {device.system.si4713InterruptPending && (
+                <button className="button warning full" disabled={busy !== null} onClick={() => run('interrupt-ack', api.acknowledgeSi4713Interrupt, 'Alerta reconhecido; GP2 rearmado')}><Check size={17} /> Reconhecer e rearmar GP2</button>
+              )}
+              <div><CircleAlert size={18} /><span><strong>Leitura do Si4713</strong>A faixa vermelha começa em −12 dBFS; OVERMOD acende o contorno e o aviso de corte</span></div>
             </div>
           </Panel>
 
@@ -396,11 +479,11 @@ export default function App() {
           <div className="scan-layout">
             <div className="scan-control">
               <button className="button secondary full" disabled={scan.running || busy !== null} onClick={async () => { scanCarregadoDoDispositivo.current = false; await run('scan', () => api.startScan(), 'Varredura iniciada; a transmissão foi pausada'); setScan({ ...emptyScan, running: true }) }}><Search size={17} /> {scan.running ? 'Varrendo…' : 'Iniciar varredura'}</button>
-              <p>A transmissão é pausada durante a leitura de 87,5 a 108,0 MHz.</p>
+              <p>A transmissão é pausada durante a leitura de {mhz(device.system.frequencyMinKhz)} a {mhz(device.system.frequencyMaxKhz)} MHz.</p>
               <div className="progress-label"><span>Progresso</span><strong>{scan.progress}%</strong></div>
               <div className="progress"><i style={{ width: `${scan.progress}%` }} /></div>
             </div>
-            <div className="chart-wrap"><span className="subheading">Nível de ruído por frequência</span><ScanChart measurements={scan.measurements} /></div>
+            <div className="chart-wrap"><span className="subheading">Nível de ruído por frequência</span><ScanChart measurements={scan.measurements} minKhz={device.system.frequencyMinKhz} maxKhz={device.system.frequencyMaxKhz} /></div>
             <div className="ranking"><span className="subheading">Melhores canais</span>{topFrequencies.length ? <ol>{topFrequencies.map((item) => <li key={item.frequencyKhz}><strong>{mhz(item.frequencyKhz)} MHz</strong><span>ruído {item.noiseLevel}</span><button className="text-button" onClick={() => run('frequency', () => api.applyScannedFrequency(item.frequencyKhz), `${mhz(item.frequencyKhz)} MHz aplicada`)}>Aplicar</button></li>)}</ol> : <p className="muted">Resultados aparecerão aqui.</p>}</div>
             <aside className="recommendation"><span>Recomendada</span><strong>{scan.recommendedFrequencyKhz ? mhz(scan.recommendedFrequencyKhz) : '—'} <small>MHz</small></strong><p>{scan.recommendedFrequencyKhz ? `ruído ${scan.recommendedNoiseLevel}` : 'Aguardando varredura'}</p><button className="button primary full" disabled={!scan.finished || !scan.recommendedFrequencyKhz} onClick={() => run('frequency', () => api.applyScannedFrequency(scan.recommendedFrequencyKhz), `${mhz(scan.recommendedFrequencyKhz)} MHz aplicada diretamente`)}><Check size={17} /> Aplicar frequência</button></aside>
           </div>

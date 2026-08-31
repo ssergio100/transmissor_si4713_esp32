@@ -131,9 +131,10 @@ A API deverá ser versionada e trabalhar com o mesmo modelo usado pelo painel:
 
 Ao terminar a varredura, a interface apresentará os resultados medidos, ordenados
 pelo menor nível de ruído, destacará a recomendação e oferecerá a ação
-**Aplicar**. Essa ação altera a frequência do estado compartilhado e configura
-imediatamente o Si4713; salvar a escolha de forma permanente continuará sendo
-uma decisão explícita. Durante a varredura a interface deverá mostrar que o
+**Aplicar**. Essa ação altera a frequência do estado compartilhado, configura
+imediatamente o Si4713 e persiste a frequência aplicada em NVS. Durante a
+edição manual, a saída RF permanece pausada enquanto cada passo é sintonizado e
+só retorna após a confirmação. Durante a varredura a interface deverá mostrar que o
 transmissor está fora do ar, pois a medição de ruído do Si4713 desliga a saída de
 transmissão. A classificação não usará um limite arbitrário para declarar um
 canal livre: o critério e a apresentação serão validados com as medições reais.

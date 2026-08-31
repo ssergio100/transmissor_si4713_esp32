@@ -5,11 +5,12 @@
 #include "persistencia.h"
 
 bool Transmissor::iniciar() {
-  mutexEstado_ = xSemaphoreCreateMutex();
-  filaComandos_ = xQueueCreate(4, sizeof(ComandoTransmissor));
-
   if (!Persistencia::carregar(configuracao_)) {
     configuracao_.aplicarPadroes();
+  }
+  uint16_t frequenciaSalva = 0;
+  if (Persistencia::carregarFrequencia(frequenciaSalva)) {
+    configuracao_.frequenciaKhz = frequenciaSalva;
   }
 
   configuracao_.sanitizarTextos();
@@ -19,31 +20,22 @@ bool Transmissor::iniciar() {
 }
 
 void Transmissor::processar() {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
   radio_.processar();
-  xSemaphoreGive(mutexEstado_);
 
-  const bool disponivel = telemetria().si4713Disponivel;
+  const bool disponivel = radio_.telemetria().si4713Disponivel;
   if (disponivel && !radioDisponivelNoCicloAnterior_) {
     aplicarConfiguracao(configuracao_);
   }
   radioDisponivelNoCicloAnterior_ = disponivel;
-  processarComandos();
   atualizarRadioTextDinamico();
 }
 
-ConfiguracaoTransmissor Transmissor::configuracao() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const ConfiguracaoTransmissor copia = configuracao_;
-  xSemaphoreGive(mutexEstado_);
-  return copia;
+const ConfiguracaoTransmissor& Transmissor::configuracao() const {
+  return configuracao_;
 }
 
-TelemetriaTransmissor Transmissor::telemetria() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const TelemetriaTransmissor copia = radio_.telemetria();
-  xSemaphoreGive(mutexEstado_);
-  return copia;
+const TelemetriaTransmissor& Transmissor::telemetria() const {
+  return radio_.telemetria();
 }
 
 ConfiguracaoTransmissor Transmissor::copiarConfiguracao() const {
@@ -54,8 +46,9 @@ bool Transmissor::aplicarConfiguracao(ConfiguracaoTransmissor configuracao) {
   configuracao.sanitizarTextos();
   if (!configuracao.valoresValidos()) return false;
 
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
   const ConfiguracaoTransmissor anterior = configuracao_;
+  const bool deveSalvarFrequencia = ajusteFrequenciaAtivo_
+      || configuracao.frequenciaKhz != anterior.frequenciaKhz;
   configuracao_ = configuracao;
 
   char textoEfetivo[33];
@@ -76,12 +69,25 @@ bool Transmissor::aplicarConfiguracao(ConfiguracaoTransmissor configuracao) {
     aplicado = radio_.aplicar(configuracao_);
   }
 
-  if (!aplicado) configuracao_ = anterior;
-  xSemaphoreGive(mutexEstado_);
-  return aplicado;
+  if (!aplicado) {
+    configuracao_ = anterior;
+    return false;
+  }
+
+  ajusteFrequenciaAtivo_ = false;
+  if (deveSalvarFrequencia
+      && !Persistencia::salvarFrequencia(configuracao_.frequenciaKhz)) {
+    Serial.println("[ERRO] Frequencia aplicada, mas nao gravada na NVS");
+    return false;
+  }
+  return true;
 }
 
 bool Transmissor::salvarConfiguracao() {
+  if (ajusteFrequenciaAtivo_
+      && !aplicarConfiguracao(configuracao_)) {
+    return false;
+  }
   return Persistencia::salvar(configuracao_);
 }
 
@@ -93,122 +99,87 @@ bool Transmissor::restaurarPadroes() {
 }
 
 bool Transmissor::reiniciarRf() {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const bool ok = radio_.reiniciarRf();
-  xSemaphoreGive(mutexEstado_);
-  return ok;
+  if (ajusteFrequenciaAtivo_) return false;
+  return radio_.reiniciarRf();
+}
+
+bool Transmissor::setLeituraAudio(bool habilitar) {
+  leituraAudioWebSolicitada_ = habilitar;
+  radio_.setLeituraAudio(
+      leituraAudioWebSolicitada_ || leituraAudioDisplaySolicitada_
+  );
+  return true;
+}
+
+bool Transmissor::setLeituraAudioDisplay(bool habilitar) {
+  leituraAudioDisplaySolicitada_ = habilitar;
+  radio_.setLeituraAudio(
+      leituraAudioWebSolicitada_ || leituraAudioDisplaySolicitada_
+  );
+  return true;
+}
+
+bool Transmissor::leituraAudioHabilitada() const {
+  return radio_.leituraAudioHabilitada();
+}
+
+bool Transmissor::reconhecerInterrupcaoSi4713() {
+  return radio_.reconhecerInterrupcao();
 }
 
 bool Transmissor::iniciarVarredura() {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const bool ok = radio_.iniciarVarredura();
-  xSemaphoreGive(mutexEstado_);
-  return ok;
+  if (ajusteFrequenciaAtivo_) return false;
+  return radio_.iniciarVarredura();
 }
 
 bool Transmissor::cancelarVarredura() {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const bool ok = radio_.cancelarVarredura();
-  xSemaphoreGive(mutexEstado_);
-  return ok;
+  return radio_.cancelarVarredura();
+}
+
+bool Transmissor::iniciarAjusteFrequencia() {
+  if (ajusteFrequenciaAtivo_) return true;
+  if (!radio_.iniciarAjusteFrequencia()) return false;
+  ajusteFrequenciaAtivo_ = true;
+  return true;
+}
+
+bool Transmissor::previsualizarFrequencia(uint16_t frequenciaKhz) {
+  if (!iniciarAjusteFrequencia()
+      || !radio_.previsualizarFrequencia(frequenciaKhz)) {
+    return false;
+  }
+  configuracao_.frequenciaKhz = frequenciaKhz;
+  return true;
 }
 
 bool Transmissor::aplicarFrequencia(uint16_t frequenciaKhz) {
+  const bool persistenciaJaSolicitada = ajusteFrequenciaAtivo_
+      || frequenciaKhz != configuracao_.frequenciaKhz;
   ConfiguracaoTransmissor alterada = configuracao();
   alterada.frequenciaKhz = frequenciaKhz;
-  return aplicarConfiguracao(alterada);
-}
-
-bool Transmissor::enviarComando(ComandoTransmissor& comando) {
-  if (filaComandos_ == nullptr) return false;
-
-  auto* resposta = new RespostaComando();
-  resposta->concluido = xSemaphoreCreateBinary();
-  comando.resposta = resposta;
-  if (resposta->concluido == nullptr) {
-    delete resposta;
-    comando.resposta = nullptr;
-    return false;
-  }
-
-  if (xQueueSend(filaComandos_, &comando, pdMS_TO_TICKS(100)) != pdTRUE) {
-    vSemaphoreDelete(resposta->concluido);
-    delete resposta;
-    comando.resposta = nullptr;
-    return false;
-  }
-
-  const bool respondeu =
-      xSemaphoreTake(resposta->concluido, pdMS_TO_TICKS(3000)) == pdTRUE;
-  const bool resultado = respondeu && resposta->resultado;
-  vSemaphoreDelete(resposta->concluido);
-  delete resposta;
-  comando.resposta = nullptr;
-  return resultado;
-}
-
-void Transmissor::processarComandos() {
-  ComandoTransmissor comando;
-  while (xQueueReceive(filaComandos_, &comando, 0) == pdTRUE) {
-    if (comando.resposta == nullptr) continue;
-    comando.resposta->resultado = executarComando(comando);
-    xSemaphoreGive(comando.resposta->concluido);
-  }
-}
-
-bool Transmissor::executarComando(const ComandoTransmissor& comando) {
-  switch (comando.tipo) {
-    case ComandoTipo::APLICAR_CONFIGURACAO:
-      return aplicarConfiguracao(comando.configuracao);
-    case ComandoTipo::SALVAR_CONFIGURACAO:
-      return salvarConfiguracao();
-    case ComandoTipo::RESTAURAR_PADROES:
-      return restaurarPadroes();
-    case ComandoTipo::REINICIAR_RF:
-      return reiniciarRf();
-    case ComandoTipo::INICIAR_VARREDURA:
-      return iniciarVarredura();
-    case ComandoTipo::CANCELAR_VARREDURA:
-      return cancelarVarredura();
-    case ComandoTipo::APLICAR_FREQUENCIA:
-      return aplicarFrequencia(comando.frequenciaKhz);
-  }
-  return false;
+  if (!aplicarConfiguracao(alterada)) return false;
+  return persistenciaJaSolicitada
+      || Persistencia::salvarFrequencia(frequenciaKhz);
 }
 
 size_t Transmissor::quantidadeMedicoes() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const size_t quantidade = radio_.quantidadeMedicoes();
-  xSemaphoreGive(mutexEstado_);
-  return quantidade;
+  return radio_.quantidadeMedicoes();
 }
 
-MedicaoCanal Transmissor::medicao(size_t indice) const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const MedicaoCanal item = radio_.medicao(indice);
-  xSemaphoreGive(mutexEstado_);
-  return item;
+const MedicaoCanal& Transmissor::medicao(size_t indice) const {
+  return radio_.medicao(indice);
 }
 
 uint16_t Transmissor::melhorFrequencia() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const uint16_t melhor = radio_.melhorFrequencia();
-  xSemaphoreGive(mutexEstado_);
-  return melhor;
+  return radio_.melhorFrequencia();
 }
 
 uint8_t Transmissor::melhorNivelRuido() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const uint8_t nivel = radio_.melhorNivelRuido();
-  xSemaphoreGive(mutexEstado_);
-  return nivel;
+  return radio_.melhorNivelRuido();
 }
 
 uint8_t Transmissor::enderecoRadio() const {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
-  const uint8_t endereco = radio_.endereco();
-  xSemaphoreGive(mutexEstado_);
-  return endereco;
+  return radio_.endereco();
 }
 
 bool Transmissor::horaValida() const {
@@ -217,13 +188,11 @@ bool Transmissor::horaValida() const {
 }
 
 void Transmissor::atualizarRadioTextDinamico(bool forcar) {
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
+  if (ajusteFrequenciaAtivo_) return;
   const bool habilitado = configuracao_.rdsHabilitado;
   const FonteRadioText fonte = configuracao_.fonteRadioText;
   const bool varreduraAtiva = radio_.telemetria().varreduraAtiva;
   const bool disponivel = radio_.telemetria().si4713Disponivel;
-  xSemaphoreGive(mutexEstado_);
-
   if (!habilitado
       || fonte == FonteRadioText::TEXTO_MANUAL
       || fonte == FonteRadioText::FRASE
@@ -240,7 +209,6 @@ void Transmissor::atualizarRadioTextDinamico(bool forcar) {
   if (!formatarRadioText(texto, sizeof(texto))) return;
   if (!forcar && strncmp(texto, ultimoRadioTextAplicado_, 32) == 0) return;
 
-  xSemaphoreTake(mutexEstado_, portMAX_DELAY);
   ConfiguracaoTransmissor efetiva = configuracao_;
   ConfiguracaoTransmissor::copiarTextoPreenchido(efetiva.rdsText, 32, texto);
   const bool aplicado = radio_.aplicar(efetiva);
@@ -248,7 +216,6 @@ void Transmissor::atualizarRadioTextDinamico(bool forcar) {
     strncpy(ultimoRadioTextAplicado_, efetiva.rdsText, 32);
     ultimoRadioTextAplicado_[32] = '\0';
   }
-  xSemaphoreGive(mutexEstado_);
 }
 
 bool Transmissor::formatarRadioText(char* destino, size_t tamanho) const {

@@ -30,7 +30,7 @@
 | Encoder CLK | 15 | entrada | confirmar estado durante boot |
 | Encoder SW | 7 | entrada pull-up | clique curto e pressão longa |
 | Reset Si4713 | 5 | saída | confirmar nível no módulo antes de conectar |
-| Detector físico de RF | 4 | entrada, pull-down | reservado; HIGH somente com portadora detectada |
+| Si4713 GP2/INT | 4 | entrada, sem pull | pulso ativo em LOW; não usar pull-up durante o reset |
 
 O LCD de 5 V e o Si4713 de 3,3 V permanecem separados pelo mesmo conversor de
 nível lógico BSS138 do transmissor original. O ESP32 usa lógica de 3,3 V; a
@@ -43,14 +43,29 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 - [ ] níveis ociosos do I2C medidos antes de conectar sinais;
 - [ ] scanner encontra LCD e Si4713 nos endereços esperados;
 - [ ] LCD exibe a tela inicial;
-- [ ] encoder confirma direção, detentes, clique e pressão longa;
+- [ ] encoder confirma direção e exatamente um evento por detente;
+- [ ] log mostra clique curto entre 50 e 699 ms somente na soltura;
+- [ ] log mostra pressão longa a partir de 700 ms somente na soltura;
+- [ ] pressionar ou soltar o eixo sem girar não muda o item do menu;
 - [ ] reset e identificação do Si4713 passam;
+- [ ] GP2 do módulo está ligado ao GPIO4, sem pull-up externo adicional;
+- [ ] fora do monitoramento contínuo, sobremodulação gera um único log `[SI4713-INT]` e trava o alerta;
+- [ ] o contador não continua subindo enquanto o alerta aguarda reconhecimento;
+- [ ] a tela `Monitor` do LCD ativa a leitura somente enquanto está aberta;
+- [ ] o LCD mostra apenas nível em dBFS e `OK`/`CORTE`, sem ASQ ou contador;
+- [ ] botão web envia `INTACK` e rearma GP2 quando houver alerta travado;
 - [ ] transmissão permanece desligada nos padrões e após restaurar;
-- [ ] nível de áudio bruto e ASQ são observados;
+- [ ] salvar TX ligado, cortar a alimentação e confirmar no novo boot o log
+      `[RF] Sequencia concluida em aplicacao` antes de o LCD mostrar `NO AR`;
+- [ ] repetir o ciclo com TX salvo desligado e confirmar potência retornada zero;
+- [ ] com TX ligado, entrar no ajuste de frequência pelo LCD e confirmar que a
+      potência cai para zero antes do primeiro giro;
+- [ ] girar vários passos e confirmar cada frequência no LCD/API, enquanto o
+      receptor de teste permanece sem portadora; clicar e confirmar que o TX volta;
+- [ ] repetir o ajuste pela web, cortar a alimentação e confirmar no boot que a
+      última frequência aplicada foi restaurada (não a frequência anterior);
+- [ ] nível de áudio e estado `OK`/`CORTE` são observados no LCD;
 - [ ] reset e ciclo de energia recuperam o estado esperado;
-- [ ] detector físico permanece LOW com TX desligado e muda para HIGH com TX ligado;
-- [ ] detector físico não responde ao tráfego Wi-Fi com TX desligado;
-- [ ] detector não altera a sintonia automática nem o alcance do Si4713;
 - [ ] perda e retorno de rede não interrompem o painel físico.
 
 ## Diagnóstico I2C no boot
@@ -74,8 +89,9 @@ alimentado em 5 V, confirme fisicamente que o lado do ESP32/Si4713 permanece em
 - tensões medidas e resistência efetiva dos pull-ups I2C;
 - comportamento do GPIO5 no reset do módulo conectado;
 - cadência estável de leitura ASQ com LCD, Wi-Fi e telemetria ativos;
-- calibração de `VDET`, `VREF` e do capacitor de amostragem do detector físico;
+- detector físico de portadora adiado; o GPIO4 está ocupado por GP2/INT;
 - validação RF, áudio e RDS no equipamento de medição/recepção.
 
-O projeto do detector está em
-[`../../hardware/detector_rf_si4713.md`](../../hardware/detector_rf_si4713.md).
+O projeto do detector permanece documentado em
+[`../../hardware/detector_rf_si4713.md`](../../hardware/detector_rf_si4713.md),
+mas não faz parte desta etapa.

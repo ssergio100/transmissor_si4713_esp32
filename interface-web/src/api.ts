@@ -27,7 +27,7 @@ let state: DeviceState = {
     powerDbuv: 100,
     antennaCap: 52,
     audioLevelDbfs: -38,
-    asq: 44,
+    asq: 0,
   },
   system: {
     si4713Available: true,
@@ -35,6 +35,11 @@ let state: DeviceState = {
     recoveries: 0,
     i2cCommunicationFailures: 0,
     rfStateMismatches: 0,
+    si4713InterruptPin: 4,
+    si4713InterruptCount: 0,
+    si4713LastInterruptMs: 0,
+    si4713LastInterrupt: 'none',
+    si4713InterruptPending: false,
     scanRunning: false,
     scanFinished: true,
     scanProgress: 100,
@@ -43,7 +48,10 @@ let state: DeviceState = {
     ip: '192.168.1.50',
     timeValid: true,
     uptimeMs: 120000,
-    firmwareVersion: '0.1.9',
+    firmwareVersion: '0.1.15',
+    frequencyMinKhz: 7610,
+    frequencyMaxKhz: 10800,
+    frequencyStepKhz: 10,
   },
 }
 
@@ -56,7 +64,7 @@ let scan: ScanResult = {
   recommendedFrequencyKhz: 9570,
   recommendedNoiseLevel: 2,
   measurements: Array.from({ length: 83 }, (_, index) => ({
-    frequencyKhz: 8750 + index * 25,
+    frequencyKhz: 7610 + index * 25,
     noiseLevel: index === 33 ? 2 : seededNoise(index),
   })),
 }
@@ -94,6 +102,19 @@ export async function applySettings(settings: Settings): Promise<DeviceState> {
   return clone(state)
 }
 
+export async function previewFrequency(frequencyKhz: number): Promise<DeviceState> {
+  if (!usingMock) {
+    return request('/api/v1/frequency/adjust', {
+      method: 'PUT',
+      body: JSON.stringify({ frequencyKhz }),
+    })
+  }
+  state.desired.frequencyKhz = frequencyKhz
+  state.applied.frequencyKhz = frequencyKhz
+  state.applied.onAir = false
+  return clone(state)
+}
+
 export async function setTransmission(enabled: boolean): Promise<DeviceState> {
   if (!usingMock) return request('/api/v1/tx', { method: 'POST', body: JSON.stringify({ enabled }) })
   state.desired.txEnabled = enabled
@@ -106,6 +127,24 @@ export async function restartRf(): Promise<DeviceState> {
   state.applied.onAir = state.desired.txEnabled
       && state.system.si4713Available
   return clone(state)
+}
+
+export async function acknowledgeSi4713Interrupt(): Promise<DeviceState> {
+  if (!usingMock) {
+    return request('/api/v1/si4713/interrupt/ack', { method: 'POST' })
+  }
+  state.system.si4713InterruptPending = false
+  return clone(state)
+}
+
+export async function setAudioMonitoring(enabled: boolean): Promise<void> {
+  if (usingMock) return
+  // A interface solicita explicitamente a leitura periodica de audio na I2C.
+  // O WebSocket pode permanecer conectado para receber estado e interrupcoes.
+  await request('/api/v1/audio/monitor', {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  })
 }
 
 export async function saveSettings(): Promise<void> {
@@ -141,6 +180,7 @@ export async function applyScannedFrequency(frequencyKhz: number): Promise<Devic
   if (!usingMock) return request('/api/v1/scan/apply', { method: 'POST', body: JSON.stringify({ frequencyKhz }) })
   state.desired.frequencyKhz = frequencyKhz
   state.applied.frequencyKhz = frequencyKhz
+  state.applied.onAir = state.desired.txEnabled && state.system.si4713Available
   return clone(state)
 }
 
@@ -179,8 +219,8 @@ export function subscribeAudio(
     const timer = window.setInterval(() => {
       const level = state.applied.onAir && !state.desired.muted ? -32 + Math.round(Math.random() * 26) : -60
       state.applied.audioLevelDbfs = level
-      state.applied.asq = Math.max(0, Math.min(100, 78 + Math.round(Math.random() * 18)))
-      onData({ type: 'audio', sequence: ++sequence, timestampMs: Date.now(), levelDbfs: level, asq: state.applied.asq, overmodulation: level > -2, onAir: state.applied.onAir })
+      state.applied.asq = 0
+      onData({ type: 'audio', sequence: ++sequence, timestampMs: Date.now(), levelDbfs: level, asq: state.applied.asq, overmodulation: false, onAir: state.applied.onAir })
     }, 100)
     return () => window.clearInterval(timer)
   }
