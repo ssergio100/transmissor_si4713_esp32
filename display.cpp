@@ -57,6 +57,7 @@ void Display::renderizar(
     const Menu& menu,
     const ConfiguracaoTransmissor& configuracao,
     const TelemetriaTransmissor& telemetria,
+    const TelemetriaReceptorRda5807& telemetriaReceptor,
     uint16_t melhorFrequencia,
     uint8_t melhorRuido
 ) {
@@ -74,7 +75,7 @@ void Display::renderizar(
 
   switch (menu.tela()) {
     case Menu::Tela::PRINCIPAL:
-      mostrarPrincipal(configuracao, telemetria);
+      mostrarPrincipal(configuracao, telemetria, telemetriaReceptor);
       break;
     case Menu::Tela::RAIZ:
       mostrarRaiz(menu.itemSelecionado());
@@ -112,7 +113,8 @@ void Display::renderizar(
 
 void Display::mostrarPrincipal(
     const ConfiguracaoTransmissor& configuracao,
-    const TelemetriaTransmissor& telemetria
+    const TelemetriaTransmissor& telemetria,
+    const TelemetriaReceptorRda5807& telemetriaReceptor
 ) {
   char texto[21];
   snprintf(
@@ -135,7 +137,17 @@ void Display::mostrarPrincipal(
   escreverLinha(1, texto);
 
   escreverLinha(2, "Audio: abra Monitor");
-  escreverLinha(3, "Clique para o menu");
+  if (telemetriaReceptor.disponivel) {
+    snprintf(
+        texto,
+        sizeof(texto),
+        "RX RSSI: %3u",
+        telemetriaReceptor.rssi
+    );
+    escreverLinha(3, texto);
+  } else {
+    escreverLinha(3, "RX RSSI: --");
+  }
 }
 
 void Display::mostrarRaiz(uint8_t item) {

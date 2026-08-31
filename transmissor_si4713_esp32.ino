@@ -162,6 +162,7 @@ void renderizarDisplay() {
       menu,
       transmissor.configuracao(),
       transmissor.telemetria(),
+      transmissor.telemetriaReceptor(),
       transmissor.melhorFrequencia(),
       transmissor.melhorNivelRuido()
   );

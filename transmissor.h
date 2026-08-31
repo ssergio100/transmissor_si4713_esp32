@@ -2,6 +2,7 @@
 
 #include "modelos.h"
 #include "radio_si4713.h"
+#include "receptor_rda5807.h"
 
 class Transmissor {
  public:
@@ -10,6 +11,7 @@ class Transmissor {
 
   const ConfiguracaoTransmissor& configuracao() const;
   const TelemetriaTransmissor& telemetria() const;
+  const TelemetriaReceptorRda5807& telemetriaReceptor() const;
   ConfiguracaoTransmissor copiarConfiguracao() const;
 
   bool aplicarConfiguracao(ConfiguracaoTransmissor configuracao);
@@ -44,6 +46,7 @@ class Transmissor {
 
   ConfiguracaoTransmissor configuracao_;
   RadioSi4713 radio_;
+  ReceptorRda5807 receptor_;
   char ultimoRadioTextAplicado_[33] = "";
   uint32_t ultimoSegundoRadioText_ = UINT32_MAX;
   bool radioDisponivelNoCicloAnterior_ = false;

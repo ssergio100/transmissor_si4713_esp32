@@ -14,13 +14,16 @@ bool Transmissor::iniciar() {
   }
 
   configuracao_.sanitizarTextos();
-  if (!radio_.iniciar()) return false;
+  const bool radioIniciado = radio_.iniciar();
+  receptor_.iniciar(configuracao_.frequenciaKhz);
+  if (!radioIniciado) return false;
   radioDisponivelNoCicloAnterior_ = true;
   return aplicarConfiguracao(configuracao_);
 }
 
 void Transmissor::processar() {
   radio_.processar();
+  receptor_.processar();
 
   const bool disponivel = radio_.telemetria().si4713Disponivel;
   if (disponivel && !radioDisponivelNoCicloAnterior_) {
@@ -36,6 +39,10 @@ const ConfiguracaoTransmissor& Transmissor::configuracao() const {
 
 const TelemetriaTransmissor& Transmissor::telemetria() const {
   return radio_.telemetria();
+}
+
+const TelemetriaReceptorRda5807& Transmissor::telemetriaReceptor() const {
+  return receptor_.telemetria();
 }
 
 ConfiguracaoTransmissor Transmissor::copiarConfiguracao() const {
@@ -73,6 +80,8 @@ bool Transmissor::aplicarConfiguracao(ConfiguracaoTransmissor configuracao) {
     configuracao_ = anterior;
     return false;
   }
+
+  receptor_.sintonizar(configuracao_.frequenciaKhz);
 
   ajusteFrequenciaAtivo_ = false;
   if (deveSalvarFrequencia
@@ -149,6 +158,7 @@ bool Transmissor::previsualizarFrequencia(uint16_t frequenciaKhz) {
     return false;
   }
   configuracao_.frequenciaKhz = frequenciaKhz;
+  receptor_.sintonizar(frequenciaKhz);
   return true;
 }
 

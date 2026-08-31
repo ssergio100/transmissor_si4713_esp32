@@ -4,6 +4,7 @@
 
 #include "menu.h"
 #include "modelos.h"
+#include "receptor_rda5807.h"
 
 class Display {
  public:
@@ -17,6 +18,7 @@ class Display {
       const Menu& menu,
       const ConfiguracaoTransmissor& configuracao,
       const TelemetriaTransmissor& telemetria,
+      const TelemetriaReceptorRda5807& telemetriaReceptor,
       uint16_t melhorFrequencia,
       uint8_t melhorRuido
   );
@@ -24,7 +26,8 @@ class Display {
  private:
   void mostrarPrincipal(
       const ConfiguracaoTransmissor& configuracao,
-      const TelemetriaTransmissor& telemetria
+      const TelemetriaTransmissor& telemetria,
+      const TelemetriaReceptorRda5807& telemetriaReceptor
   );
   void mostrarRaiz(uint8_t item);
   void mostrarRf(

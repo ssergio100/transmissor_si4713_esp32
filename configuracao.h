@@ -4,7 +4,7 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.15";
+constexpr char VERSAO_FIRMWARE[] = "0.1.16-rda-teste";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
 
