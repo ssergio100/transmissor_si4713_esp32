@@ -22,9 +22,13 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
     return false;
   }
 
+  // Replica a inicializacao ja validada no projeto nixie-clock-with-DFPlayer.
+  radio_.setBass(false);
   radio_.setBand(2);  // Faixa mundial: 76 a 108 MHz.
-  radio_.setStep(100);
+  radio_.setSoftmute(false);
+  radio_.setAudioOutputHighImpedance(true);
   radio_.setVolume(0);
+  radio_.setMono(true);
   telemetria_.disponivel = true;
 
   if (!sintonizar(frequenciaKhz)) {
@@ -32,13 +36,16 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
     return false;
   }
 
-  telemetria_.rssi = static_cast<uint8_t>(radio_.getRssi());
+  atualizarLeituraRssi();
   ultimaLeituraMs_ = millis();
   Serial.printf(
-      "[RDA5807] iniciado: id=0x%04X frequencia=%u RSSI=%u\n",
+      "[RDA5807] iniciado: id=0x%04X frequencia=%u "
+      "RSSI_reg=%u RSSI_lib=%u reg0B=0x%04X\n",
       identificador,
       telemetria_.frequenciaKhz,
-      telemetria_.rssi
+      telemetria_.rssi,
+      telemetria_.rssiBiblioteca,
+      telemetria_.status0bBruto
   );
   return true;
 }
@@ -55,8 +62,12 @@ bool ReceptorRda5807::sintonizar(uint16_t frequenciaKhz) {
   // O projeto e a biblioteca representam a frequencia em unidades de 10 kHz:
   // 10170 corresponde a 101,70 MHz.
   radio_.setFrequency(frequenciaKhz);
-  telemetria_.frequenciaKhz = frequenciaKhz;
-  Serial.printf("[RDA5807] sintonizado em %u\n", frequenciaKhz);
+  telemetria_.frequenciaKhz = radio_.getRealFrequency();
+  Serial.printf(
+      "[RDA5807] sintonia solicitada=%u confirmada=%u\n",
+      frequenciaKhz,
+      telemetria_.frequenciaKhz
+  );
   return true;
 }
 
@@ -69,7 +80,7 @@ void ReceptorRda5807::processar() {
   }
 
   ultimaLeituraMs_ = agora;
-  telemetria_.rssi = static_cast<uint8_t>(radio_.getRssi());
+  atualizarLeituraRssi();
 }
 
 const TelemetriaReceptorRda5807& ReceptorRda5807::telemetria() const {
@@ -79,4 +90,37 @@ const TelemetriaReceptorRda5807& ReceptorRda5807::telemetria() const {
 bool ReceptorRda5807::enderecoResponde() const {
   Wire.beginTransmission(ENDERECO_SEQUENCIAL);
   return Wire.endTransmission() == 0;
+}
+
+void ReceptorRda5807::atualizarLeituraRssi() {
+  telemetria_.rssiBiblioteca = static_cast<uint8_t>(radio_.getRssi());
+
+  uint16_t status = 0;
+  telemetria_.leituraDiretaValida =
+      lerRegistradorDireto(REGISTRADOR_STATUS_0B, status);
+  if (!telemetria_.leituraDiretaValida) {
+    telemetria_.rssi = telemetria_.rssiBiblioteca;
+    return;
+  }
+
+  telemetria_.status0bBruto = status;
+  telemetria_.rssi = static_cast<uint8_t>((status >> 9) & 0x7F);
+}
+
+bool ReceptorRda5807::lerRegistradorDireto(
+    uint8_t registrador,
+    uint16_t& valor
+) const {
+  Wire.beginTransmission(ENDERECO_DIRETO);
+  Wire.write(registrador);
+  if (Wire.endTransmission(false) != 0) return false;
+
+  if (Wire.requestFrom(ENDERECO_DIRETO, static_cast<uint8_t>(2)) != 2) {
+    while (Wire.available()) Wire.read();
+    return false;
+  }
+
+  valor = static_cast<uint16_t>(Wire.read()) << 8;
+  valor |= static_cast<uint16_t>(Wire.read());
+  return true;
 }

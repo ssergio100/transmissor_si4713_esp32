@@ -138,17 +138,29 @@ void Display::mostrarPrincipal(
 
   escreverLinha(2, "Audio: abra Monitor");
   if (telemetriaReceptor.disponivel) {
-    snprintf(
-        texto,
-        sizeof(texto),
-        "%u.%02uMHz RSSI:%3u",
-        telemetriaReceptor.frequenciaKhz / 100,
-        telemetriaReceptor.frequenciaKhz % 100,
-        telemetriaReceptor.rssi
-    );
+    if (telemetriaReceptor.leituraDiretaValida) {
+      snprintf(
+          texto,
+          sizeof(texto),
+          "%u.%02u R:%3u L:%3u",
+          telemetriaReceptor.frequenciaKhz / 100,
+          telemetriaReceptor.frequenciaKhz % 100,
+          telemetriaReceptor.rssi,
+          telemetriaReceptor.rssiBiblioteca
+      );
+    } else {
+      snprintf(
+          texto,
+          sizeof(texto),
+          "%u.%02u R:--- L:%3u",
+          telemetriaReceptor.frequenciaKhz / 100,
+          telemetriaReceptor.frequenciaKhz % 100,
+          telemetriaReceptor.rssiBiblioteca
+      );
+    }
     escreverLinha(3, texto);
   } else {
-    escreverLinha(3, "---.--MHz RSSI:---");
+    escreverLinha(3, "---.-- R:--- L:---");
   }
 }
 
