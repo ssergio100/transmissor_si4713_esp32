@@ -7,7 +7,6 @@ struct TelemetriaReceptorRda5807 {
   bool disponivel = false;
   uint16_t frequenciaKhz = 0;
   uint8_t rssi = 0;
-  uint8_t rssiBiblioteca = 0;
   bool leituraDiretaValida = false;
   uint16_t status0bBruto = 0;
 };

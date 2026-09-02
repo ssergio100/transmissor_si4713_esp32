@@ -142,25 +142,23 @@ void Display::mostrarPrincipal(
       snprintf(
           texto,
           sizeof(texto),
-          "%u.%02u R:%3u L:%3u",
+          "%u.%02u RSSI:%3u",
           telemetriaReceptor.frequenciaKhz / 100,
           telemetriaReceptor.frequenciaKhz % 100,
-          telemetriaReceptor.rssi,
-          telemetriaReceptor.rssiBiblioteca
+          telemetriaReceptor.rssi
       );
     } else {
       snprintf(
           texto,
           sizeof(texto),
-          "%u.%02u R:--- L:%3u",
+          "%u.%02u RSSI:---",
           telemetriaReceptor.frequenciaKhz / 100,
-          telemetriaReceptor.frequenciaKhz % 100,
-          telemetriaReceptor.rssiBiblioteca
+          telemetriaReceptor.frequenciaKhz % 100
       );
     }
     escreverLinha(3, texto);
   } else {
-    escreverLinha(3, "---.-- R:--- L:---");
+    escreverLinha(3, "---.-- RSSI:---");
   }
 }
 
@@ -396,20 +394,27 @@ void Display::escreverLinha(uint8_t linha, const char* texto) {
   }
   while (indice < Configuracao::LCD_COLUNAS) completa[indice++] = ' ';
   completa[Configuracao::LCD_COLUNAS] = '\0';
-  if (strncmp(
-          linhasRenderizadas_[linha],
-          completa,
-          Configuracao::LCD_COLUNAS
-      ) == 0) {
-    return;
+  // O cache antigo evitava linhas identicas, mas reenviava os 20 caracteres
+  // quando apenas um digito (normalmente o RSSI) mudava. Escreva somente cada
+  // trecho diferente para encurtar ao minimo a rajada I2C sobre o LCD.
+  size_t coluna = 0;
+  while (coluna < Configuracao::LCD_COLUNAS) {
+    if (linhasRenderizadas_[linha][coluna] == completa[coluna]) {
+      coluna++;
+      continue;
+    }
+
+    lcd_.setCursor(coluna, linha);
+    do {
+      lcd_.write(static_cast<uint8_t>(completa[coluna]));
+      linhasRenderizadas_[linha][coluna] = completa[coluna];
+      coluna++;
+    } while (
+        coluna < Configuracao::LCD_COLUNAS
+        && linhasRenderizadas_[linha][coluna] != completa[coluna]
+    );
   }
-  lcd_.setCursor(0, linha);
-  lcd_.print(completa);
-  memcpy(
-      linhasRenderizadas_[linha],
-      completa,
-      Configuracao::LCD_COLUNAS + 1
-  );
+  linhasRenderizadas_[linha][Configuracao::LCD_COLUNAS] = '\0';
 }
 
 void Display::invalidarCache() {

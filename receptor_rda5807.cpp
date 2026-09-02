@@ -41,11 +41,10 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
   ultimaLeituraMs_ = millis();
   Serial.printf(
       "[RDA5807] iniciado: id=0x%04X frequencia=%u "
-      "RSSI_reg=%u RSSI_lib=%u reg0B=0x%04X\n",
+      "RSSI=%u reg0B=0x%04X\n",
       identificador,
       telemetria_.frequenciaKhz,
       telemetria_.rssi,
-      telemetria_.rssiBiblioteca,
       telemetria_.status0bBruto
   );
   return true;
@@ -94,15 +93,14 @@ bool ReceptorRda5807::enderecoResponde() const {
 }
 
 void ReceptorRda5807::atualizarLeituraRssi() {
-  telemetria_.rssiBiblioteca = static_cast<uint8_t>(radio_.getRssi());
-
+  // O diagnostico inicial comparava a biblioteca com uma leitura direta e,
+  // por isso, consultava duas vezes o mesmo registrador 0x0B. A comparacao ja
+  // provou que os valores coincidem. Manter apenas a leitura direta reduz pela
+  // metade os pulsos I2C periodicos junto ao caminho de audio analogico.
   uint16_t status = 0;
   telemetria_.leituraDiretaValida =
       lerRegistradorDireto(REGISTRADOR_STATUS_0B, status);
-  if (!telemetria_.leituraDiretaValida) {
-    telemetria_.rssi = telemetria_.rssiBiblioteca;
-    return;
-  }
+  if (!telemetria_.leituraDiretaValida) return;
 
   telemetria_.status0bBruto = status;
   telemetria_.rssi = static_cast<uint8_t>((status >> 9) & 0x7F);
