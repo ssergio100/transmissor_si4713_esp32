@@ -4,9 +4,14 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.17-rda-audio";
+constexpr char VERSAO_FIRMWARE[] = "0.1.18-rda-sem-wifi";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
+
+// Variante diagnostica: preserva todo o firmware local, mas nao inicializa
+// Wi-Fi, WiFiManager, servidores HTTP/WebSocket nem seu processamento no loop.
+// Deve permanecer true somente nesta branch de teste do RDA5807.
+constexpr bool DIAGNOSTICO_RDA_SEM_WIFI = true;
 
 constexpr int PIN_I2C_SDA = 17;
 constexpr int PIN_I2C_SCL = 18;

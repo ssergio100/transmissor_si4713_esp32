@@ -190,3 +190,12 @@ git diff -- configuracao.h receptor_rda5807.cpp
 Começar pelo teste de uma estação FM conhecida com o Si4713 desligado. Não
 implementar ainda RDS, limiar configurável ou lógica definitiva de `No AR`.
 Primeiro provar que o RDA está fisicamente sintonizado na frequência indicada.
+
+## Resultado posterior — firmware completo sem Wi-Fi
+
+Na branch `test/rda5807-sem-wifi`, o firmware completo foi executado sem
+inicializar ou processar Wi-Fi, WiFiManager, API HTTP e WebSocket. O restante do
+firmware local foi preservado. O RDA5807 continuou recebendo apenas QRM.
+
+Resultado: a ativação da rede não é necessária para reproduzir a falha e deixa
+de ser a linha principal desta investigação.

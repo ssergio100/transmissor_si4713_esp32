@@ -227,11 +227,21 @@ void setup() {
     Serial.println("[AVISO] Frases RDS iniciadas com valores padrao");
   }
 
-  Rede::iniciar();
-  api.iniciar();
+  if (Configuracao::DIAGNOSTICO_RDA_SEM_WIFI) {
+    Serial.println(
+        "[DIAG-RDA] Wi-Fi, WiFiManager, API HTTP e WebSocket desativados"
+    );
+  } else {
+    Rede::iniciar();
+    api.iniciar();
+  }
 
   renderizarDisplay();
-  Serial.println("[BOOT] Sistema local, rede e API inicializados");
+  Serial.println(
+      Configuracao::DIAGNOSTICO_RDA_SEM_WIFI
+          ? "[BOOT] Sistema local inicializado; rede desativada para diagnostico"
+          : "[BOOT] Sistema local, rede e API inicializados"
+  );
 }
 
 void loop() {
@@ -239,8 +249,10 @@ void loop() {
   const bool controleProcessado = processarControles();
   transmissor.setLeituraAudioDisplay(menu.tela() == Menu::Tela::MONITOR);
   transmissor.processar();
-  Rede::processar();
-  api.processar();
+  if (!Configuracao::DIAGNOSTICO_RDA_SEM_WIFI) {
+    Rede::processar();
+    api.processar();
+  }
 
   const uint32_t agora = millis();
   if (controleProcessado
