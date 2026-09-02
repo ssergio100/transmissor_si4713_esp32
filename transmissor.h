@@ -27,6 +27,7 @@ class Transmissor {
   bool setLeituraAudioDisplay(bool habilitar);
   bool leituraAudioHabilitada() const;
   bool reconhecerInterrupcaoSi4713();
+  void registrarDiagnosticoReceptor(const char* fase) const;
 
   size_t quantidadeMedicoes() const;
   const MedicaoCanal& medicao(size_t indice) const;

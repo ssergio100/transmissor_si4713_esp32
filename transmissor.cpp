@@ -18,7 +18,9 @@ bool Transmissor::iniciar() {
   receptor_.iniciar(configuracao_.frequenciaKhz);
   if (!radioIniciado) return false;
   radioDisponivelNoCicloAnterior_ = true;
-  return aplicarConfiguracao(configuracao_);
+  const bool configuracaoAplicada = aplicarConfiguracao(configuracao_);
+  receptor_.registrarDumpRegistradores("apos_si4713");
+  return configuracaoAplicada;
 }
 
 void Transmissor::processar() {
@@ -134,6 +136,10 @@ bool Transmissor::leituraAudioHabilitada() const {
 
 bool Transmissor::reconhecerInterrupcaoSi4713() {
   return radio_.reconhecerInterrupcao();
+}
+
+void Transmissor::registrarDiagnosticoReceptor(const char* fase) const {
+  receptor_.registrarDumpRegistradores(fase);
 }
 
 bool Transmissor::iniciarVarredura() {

@@ -17,6 +17,7 @@ class ReceptorRda5807 {
   bool iniciar(uint16_t frequenciaKhz);
   bool sintonizar(uint16_t frequenciaKhz);
   void processar();
+  void registrarDumpRegistradores(const char* fase) const;
 
   const TelemetriaReceptorRda5807& telemetria() const;
 

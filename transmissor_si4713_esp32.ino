@@ -222,6 +222,7 @@ void setup() {
   }
 
   DiagnosticoI2c::executarNoBoot();
+  transmissor.registrarDiagnosticoReceptor("apos_scan_i2c");
 
   if (!frasesRds.carregar()) {
     Serial.println("[AVISO] Frases RDS iniciadas com valores padrao");

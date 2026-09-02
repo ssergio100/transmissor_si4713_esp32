@@ -48,6 +48,7 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
       telemetria_.rssiBiblioteca,
       telemetria_.status0bBruto
   );
+  registrarDumpRegistradores("apos_rda");
   return true;
 }
 
@@ -86,6 +87,31 @@ void ReceptorRda5807::processar() {
 
 const TelemetriaReceptorRda5807& ReceptorRda5807::telemetria() const {
   return telemetria_;
+}
+
+void ReceptorRda5807::registrarDumpRegistradores(const char* fase) const {
+  static constexpr uint8_t REGISTRADORES[] = {
+      0x02,
+      0x03,
+      0x04,
+      0x05,
+      0x06,
+      0x07,
+      0x08,
+      0x0A,
+      0x0B
+  };
+
+  Serial.printf("[RDA-DUMP] fase=%s", fase == nullptr ? "?" : fase);
+  for (const uint8_t registrador : REGISTRADORES) {
+    uint16_t valor = 0;
+    if (lerRegistradorDireto(registrador, valor)) {
+      Serial.printf(" %02X=%04X", registrador, valor);
+    } else {
+      Serial.printf(" %02X=ERRO", registrador);
+    }
+  }
+  Serial.println();
 }
 
 bool ReceptorRda5807::enderecoResponde() const {
