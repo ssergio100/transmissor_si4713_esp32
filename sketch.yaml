@@ -7,6 +7,8 @@ profiles:
     libraries:
       - Adafruit Si4713 Library (1.2.4)
       - Adafruit BusIO (1.17.4)
+      - Adafruit GFX Library (1.12.6)
+      - Adafruit ST7735 and ST7789 Library (1.11.0)
       - Ai Esp32 Rotary Encoder (1.7)
       - Bounce2 (2.72)
       - LiquidCrystal I2C (1.1.2)

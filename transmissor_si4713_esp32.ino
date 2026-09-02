@@ -6,6 +6,7 @@
 #include "configuracao.h"
 #include "controles.h"
 #include "display.h"
+#include "display_tft.h"
 #include "diagnostico_i2c.h"
 #include "frases_rds.h"
 #include "menu.h"
@@ -14,6 +15,7 @@
 
 Controles controles;
 Display display;
+DisplayTft displayTft;
 Menu menu;
 Transmissor transmissor;
 FrasesRds frasesRds;
@@ -161,6 +163,7 @@ bool processarControles() {
 void renderizarDisplay() {
   const EstadoPainel estado = Apresentacao::gerar(menu, transmissor);
   display.renderizar(estado);
+  displayTft.renderizar(estado);
 }
 
 }  // namespace
@@ -210,6 +213,23 @@ void setup() {
     Serial.println("[OK] LCD 20x4 encontrado em 0x27");
   } else {
     Serial.println("[AVISO] LCD nao respondeu em 0x27");
+  }
+
+  if (displayTft.iniciar()) {
+    displayTft.mostrarInicializacao();
+    Serial.printf(
+        "[OK] TFT ST7789 inicializado: %ux%u SPI CS=%d DC=%d RST=%d MOSI=%d SCLK=%d\n",
+        Configuracao::TFT_LARGURA,
+        Configuracao::TFT_ALTURA,
+        Configuracao::PIN_TFT_CS,
+        Configuracao::PIN_TFT_DC,
+        Configuracao::PIN_TFT_RESET,
+        Configuracao::PIN_TFT_MOSI,
+        Configuracao::PIN_TFT_SCLK
+    );
+    Serial.println("[TFT] Interface somente escrita; presenca nao confirmavel por software");
+  } else {
+    Serial.println("[ERRO] Nao foi possivel iniciar o barramento SPI do TFT");
   }
 
   if (transmissor.iniciar()) {

@@ -52,14 +52,20 @@ A pinagem reservada está em `configuracao.h`: GPIO10 (`CS`), GPIO11
 é 3,3 V. GPIO8 e GPIO9 ficam disponíveis para uma futura separação do barramento
 I2C do RDA5807.
 
-A sequência de inicialização, a frequência SPI e a biblioteca compatível com
-Arduino ESP32 3.3.10 serão definidas quando o driver for implementado e testado
-na bancada. Esse driver deve ficar em uma classe separada e implementar apenas
-a renderização de `EstadoPainel`; nenhuma regra de rádio ou menu deve ser
-duplicada nele.
+O driver inicial está isolado em `display_tft.h/.cpp`, usa Adafruit ST7789 e
+recebe o mesmo `EstadoPainel` entregue ao LCD. Ele inicializa o hardware SPI em
+modo somente escrita, apresenta todas as áreas do menu e mantém cache por linha:
+uma mudança de RSSI, nível de áudio ou progresso atualiza apenas a região visual
+correspondente, sem reenviar o quadro inteiro.
+
+A rotação inicial é retrato (`0`) e a frequência SPI permanece no padrão da
+biblioteca. Orientação, cores e estabilidade elétrica ainda dependem do primeiro
+teste de bancada. A ausência de MISO impede leitura de identificação; portanto,
+o software consegue confirmar a inicialização do controlador SPI, mas a presença
+do painel somente pode ser confirmada visualmente.
 
 ## Limite atual
 
-As mensagens transitórias (`mostrarMensagem`) ainda pertencem ao LCD 20x4. Antes
-de manter dois displays ativos ao mesmo tempo, essas notificações devem migrar
-para o contrato de apresentação para que ambos recebam o mesmo aviso.
+As mensagens transitórias (`mostrarMensagem`) ainda pertencem ao LCD 20x4. Para
+que confirmações como “Configuração salva” também apareçam no TFT, essas
+notificações devem migrar para o contrato de apresentação.

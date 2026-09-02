@@ -71,7 +71,7 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 - [ ] Placa sozinha inicia e produz log serial;
 - [ ] antes de conectar o TFT, confirmar 3,3 V entre `VCC` e `GND`;
 - [ ] conferir continuidade de `SDA` para GPIO11 e de `SCL` para GPIO12;
-- [ ] primeiro teste do TFT exibe padrão de cores sem inicializar os rádios;
+- [ ] a tela de inicialização do TFT aparece antes da inicialização dos rádios;
 - [ ] perfil, flash e PSRAM conferidos no boot/build;
 - [ ] níveis ociosos do I2C medidos antes de conectar sinais;
 - [ ] scanner encontra LCD e Si4713 nos endereços esperados;
@@ -124,8 +124,9 @@ alimentado em 5 V, confirme fisicamente que o lado do ESP32/Si4713 permanece em
 - cadência estável de leitura ASQ com LCD, Wi-Fi e telemetria ativos;
 - detector físico de portadora adiado; o GPIO4 está ocupado por GP2/INT;
 - validação RF, áudio e RDS no equipamento de medição/recepção.
-- frequência SPI estável do TFT; será definida com o driver e validada na
-  bancada, sem alterar a pinagem acima.
+- frequência SPI padrão da biblioteca Adafruit estável no cabeamento real; se
+  necessário, fixar um valor medido sem alterar a pinagem acima.
+- orientação física do TFT; a rotação inicial do driver é `0` (retrato).
 
 O projeto do detector permanece documentado em
 [`../../hardware/detector_rf_si4713.md`](../../hardware/detector_rf_si4713.md),

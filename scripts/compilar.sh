@@ -19,12 +19,10 @@ if [ ! -x "$ARDUINO_CLI_BIN" ]; then
   exit 127
 fi
 
-FQBN="esp32:esp32:esp32s3:UploadSpeed=460800,USBMode=hwcdc,CDCOnBoot=default,MSCOnBoot=default,DFUOnBoot=default,UploadMode=default,CPUFreq=240,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,DebugLevel=none,PSRAM=opi,LoopCore=1,EventsCore=1,EraseFlash=none,JTAGAdapter=default,ZigbeeMode=default"
-
 PROJETO_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 "$ARDUINO_CLI_BIN" compile \
-    --fqbn "$FQBN" \
+    --profile esp32s3 \
     --clean \
     --build-path "$PROJETO_DIR/build/cache" \
     --output-dir "$PROJETO_DIR/build/firmware" \

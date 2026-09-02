@@ -4,7 +4,7 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.20-display-model";
+constexpr char VERSAO_FIRMWARE[] = "0.1.21-tft-driver";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
 
@@ -22,6 +22,11 @@ constexpr int PIN_TFT_SCLK = 12;
 constexpr int PIN_TFT_MISO = -1;
 constexpr int PIN_TFT_DC = 13;
 constexpr int PIN_TFT_RESET = 14;
+constexpr uint16_t TFT_LARGURA = 240;
+constexpr uint16_t TFT_ALTURA = 320;
+// Orientacao inicial em retrato. A bancada dira se a montagem mecanica exige
+// rotacao 2 (180 graus), sem qualquer mudanca no restante do driver.
+constexpr uint8_t TFT_ROTACAO = 0;
 
 constexpr int PIN_ENCODER_DT = 16;
 constexpr int PIN_ENCODER_CLK = 15;
