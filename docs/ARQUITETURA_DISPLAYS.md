@@ -58,11 +58,12 @@ modo somente escrita, apresenta todas as áreas do menu e mantém cache por linh
 uma mudança de RSSI, nível de áudio ou progresso atualiza apenas a região visual
 correspondente, sem reenviar o quadro inteiro.
 
-A rotação inicial é retrato (`0`) e a frequência SPI permanece no padrão da
-biblioteca. Orientação, cores e estabilidade elétrica ainda dependem do primeiro
-teste de bancada. A ausência de MISO impede leitura de identificação; portanto,
-o software consegue confirmar a inicialização do controlador SPI, mas a presença
-do painel somente pode ser confirmada visualmente.
+A orientação confirmada na montagem é retrato com rotação `2` (180° em relação
+ao padrão do controlador), e a frequência SPI permanece no padrão da biblioteca.
+Cores e estabilidade elétrica ainda dependem dos testes de bancada. A ausência
+de MISO impede leitura de identificação; portanto, o software consegue confirmar
+a inicialização do controlador SPI, mas a presença do painel somente pode ser
+confirmada visualmente.
 
 ## Limite atual
 
