@@ -53,14 +53,7 @@ void Display::cancelarMensagem() {
   mensagemAteMs_ = 0;
 }
 
-void Display::renderizar(
-    const Menu& menu,
-    const ConfiguracaoTransmissor& configuracao,
-    const TelemetriaTransmissor& telemetria,
-    const TelemetriaReceptorRda5807& telemetriaReceptor,
-    uint16_t melhorFrequencia,
-    uint8_t melhorRuido
-) {
+void Display::renderizar(const EstadoPainel& estado) {
   if (!pronto_) return;
   if (mensagemAteMs_ != 0
       && static_cast<int32_t>(mensagemAteMs_ - millis()) > 0) {
@@ -68,92 +61,78 @@ void Display::renderizar(
   }
   mensagemAteMs_ = 0;
 
-  if (telemetria.recuperando) {
+  if (estado.sistema.recuperando) {
     mostrarMensagem("Recuperando Si4713", "Aguarde...");
     return;
   }
 
-  switch (menu.tela()) {
-    case Menu::Tela::PRINCIPAL:
-      mostrarPrincipal(configuracao, telemetria, telemetriaReceptor);
+  switch (estado.navegacao.tela) {
+    case TelaPainel::PRINCIPAL:
+      mostrarPrincipal(estado);
       break;
-    case Menu::Tela::RAIZ:
-      mostrarRaiz(menu.itemSelecionado());
+    case TelaPainel::RAIZ:
+      mostrarRaiz(estado.navegacao);
       break;
-    case Menu::Tela::RF:
-      mostrarRf(configuracao, menu.itemSelecionado(), menu.editando());
+    case TelaPainel::RF:
+      mostrarRf(estado);
       break;
-    case Menu::Tela::AUDIO:
-      mostrarAudio(configuracao, menu.itemSelecionado(), menu.editando());
+    case TelaPainel::AUDIO:
+      mostrarAudio(estado);
       break;
-    case Menu::Tela::RDS:
-      mostrarRds(
-          configuracao,
-          menu.itemSelecionado(),
-          menu.editando(),
-          menu.cursorTexto()
-      );
+    case TelaPainel::RDS:
+      mostrarRds(estado);
       break;
-    case Menu::Tela::MONITOR:
-      mostrarMonitor(telemetria);
+    case TelaPainel::MONITOR:
+      mostrarMonitor(estado);
       break;
-    case Menu::Tela::VARREDURA:
-      mostrarVarredura(
-          menu.itemSelecionado(),
-          telemetria,
-          melhorFrequencia,
-          melhorRuido
-      );
+    case TelaPainel::VARREDURA:
+      mostrarVarredura(estado);
       break;
-    case Menu::Tela::SISTEMA:
-      mostrarSistema(menu.itemSelecionado());
+    case TelaPainel::SISTEMA:
+      mostrarSistema(estado);
       break;
   }
 }
 
-void Display::mostrarPrincipal(
-    const ConfiguracaoTransmissor& configuracao,
-    const TelemetriaTransmissor& telemetria,
-    const TelemetriaReceptorRda5807& telemetriaReceptor
-) {
+void Display::mostrarPrincipal(const EstadoPainel& estado) {
   char texto[21];
   snprintf(
       texto,
       sizeof(texto),
       "FM %u.%02u MHz %s",
-      configuracao.frequenciaKhz / 100,
-      configuracao.frequenciaKhz % 100,
-      telemetria.transmitindo ? "NO AR" : "OFF"
+      estado.rf.frequenciaKhz / 100,
+      estado.rf.frequenciaKhz % 100,
+      estado.rf.transmitindo ? "NO AR" : "OFF"
   );
   escreverLinha(0, texto);
   snprintf(
       texto,
       sizeof(texto),
       "PWR:%3u %s RDS:%s",
-      configuracao.potenciaDbuv,
-      configuracao.estereo ? "ST" : "MO",
-      configuracao.rdsHabilitado ? "ON" : "OFF"
+      estado.rf.potenciaDbuv,
+      estado.audio.estereo ? "ST" : "MO",
+      estado.rds.habilitado ? "ON" : "OFF"
   );
   escreverLinha(1, texto);
 
   escreverLinha(2, "Audio: abra Monitor");
-  if (telemetriaReceptor.disponivel) {
-    if (telemetriaReceptor.leituraDiretaValida) {
+  if (estado.receptor.disponivel) {
+    if (estado.receptor.leituraRssiValida) {
       snprintf(
           texto,
           sizeof(texto),
           "%u.%02u RSSI:%3u",
-          telemetriaReceptor.frequenciaKhz / 100,
-          telemetriaReceptor.frequenciaKhz % 100,
-          telemetriaReceptor.rssi
+          estado.receptor.frequenciaKhz / 100,
+          estado.receptor.frequenciaKhz % 100,
+          estado.receptor.rssi
       );
     } else {
       snprintf(
           texto,
           sizeof(texto),
           "%u.%02u RSSI:---",
-          telemetriaReceptor.frequenciaKhz / 100,
-          telemetriaReceptor.frequenciaKhz % 100
+          estado.receptor.frequenciaKhz / 100,
+          estado.receptor.frequenciaKhz % 100
       );
     }
     escreverLinha(3, texto);
@@ -162,144 +141,156 @@ void Display::mostrarPrincipal(
   }
 }
 
-void Display::mostrarRaiz(uint8_t item) {
-  mostrarCabecalho("MENU PRINCIPAL", item, Menu::QUANTIDADE_RAIZ);
+void Display::mostrarRaiz(const NavegacaoPainel& navegacao) {
+  mostrarCabecalho(
+      "MENU PRINCIPAL",
+      navegacao.indice,
+      navegacao.quantidade
+  );
   static const char* itens[] = {
       "RF", "Audio", "RDS", "Monitor", "Canal livre", "Sistema", "Voltar"
   };
-  escreverLinha(1, itens[min(item, static_cast<uint8_t>(Menu::RAIZ_VOLTAR))]);
+  constexpr uint8_t ultimoItem =
+      static_cast<uint8_t>((sizeof(itens) / sizeof(itens[0])) - 1);
+  escreverLinha(
+      1,
+      itens[min(navegacao.indice, ultimoItem)]
+  );
   escreverLinha(2, "Clique para abrir");
   escreverLinha(3, "Gire  Segure: Volta");
 }
 
-void Display::mostrarRf(
-    const ConfiguracaoTransmissor& configuracao,
-    uint8_t item,
-    bool editando
-) {
-  mostrarCabecalho("MENU RF", item, Menu::QUANTIDADE_RF);
+void Display::mostrarRf(const EstadoPainel& estado) {
+  const NavegacaoPainel& navegacao = estado.navegacao;
+  mostrarCabecalho("MENU RF", navegacao.indice, navegacao.quantidade);
   char texto[21];
-  if (item == Menu::RF_FREQUENCIA) {
+  if (navegacao.item == ItemPainel::RF_FREQUENCIA) {
     escreverLinha(1, "Frequencia");
     snprintf(
         texto,
         sizeof(texto),
         "%u.%02u MHz",
-        configuracao.frequenciaKhz / 100,
-        configuracao.frequenciaKhz % 100
+        estado.rf.frequenciaKhz / 100,
+        estado.rf.frequenciaKhz % 100
     );
-  } else if (item == Menu::RF_POTENCIA) {
+  } else if (navegacao.item == ItemPainel::RF_POTENCIA) {
     escreverLinha(1, "Potencia RF");
-    snprintf(texto, sizeof(texto), "%u dBuV", configuracao.potenciaDbuv);
-  } else if (item == Menu::RF_ANTENA) {
+    snprintf(texto, sizeof(texto), "%u dBuV", estado.rf.potenciaDbuv);
+  } else if (navegacao.item == ItemPainel::RF_ANTENA) {
     escreverLinha(1, "Capacitancia antena");
-    if (configuracao.capacitanciaAntena == 0) {
+    if (estado.rf.capacitanciaAntena == 0) {
       snprintf(texto, sizeof(texto), "AUTO");
     } else {
       snprintf(
           texto,
           sizeof(texto),
           "%u.%02u pF",
-          configuracao.capacitanciaAntena / 4,
-          (configuracao.capacitanciaAntena % 4) * 25
+          estado.rf.capacitanciaAntena / 4,
+          (estado.rf.capacitanciaAntena % 4) * 25
       );
     }
-  } else if (item == Menu::RF_TRANSMISSAO) {
+  } else if (navegacao.item == ItemPainel::RF_TRANSMISSAO) {
     escreverLinha(1, "Transmissao");
     snprintf(
         texto,
         sizeof(texto),
         "%s",
-        configuracao.transmissaoHabilitada ? "TX LIGADO" : "TX DESLIGADO"
+        estado.rf.transmissaoHabilitada ? "TX LIGADO" : "TX DESLIGADO"
     );
   } else {
     escreverLinha(1, "Voltar");
     snprintf(texto, sizeof(texto), "Clique para voltar");
   }
   escreverLinha(2, texto);
-  mostrarAjudaEdicao(editando);
+  mostrarAjudaEdicao(navegacao.editando);
 }
 
-void Display::mostrarAudio(
-    const ConfiguracaoTransmissor& configuracao,
-    uint8_t item,
-    bool editando
-) {
-  mostrarCabecalho("MENU AUDIO", item, Menu::QUANTIDADE_AUDIO);
+void Display::mostrarAudio(const EstadoPainel& estado) {
+  const NavegacaoPainel& navegacao = estado.navegacao;
+  mostrarCabecalho("MENU AUDIO", navegacao.indice, navegacao.quantidade);
   char texto[21];
-  if (item == Menu::AUDIO_ESTEREO) {
+  if (navegacao.item == ItemPainel::AUDIO_ESTEREO) {
     escreverLinha(1, "Modo de audio");
-    snprintf(texto, sizeof(texto), "%s", configuracao.estereo ? "ESTEREO" : "MONO");
-  } else if (item == Menu::AUDIO_PRE_ENFASE) {
+    snprintf(texto, sizeof(texto), "%s", estado.audio.estereo ? "ESTEREO" : "MONO");
+  } else if (navegacao.item == ItemPainel::AUDIO_PRE_ENFASE) {
     escreverLinha(1, "Pre-enfase");
-    snprintf(texto, sizeof(texto), "%u us", configuracao.preEnfaseUs);
-  } else if (item == Menu::AUDIO_DESVIO) {
+    snprintf(texto, sizeof(texto), "%u us", estado.audio.preEnfaseUs);
+  } else if (navegacao.item == ItemPainel::AUDIO_DESVIO) {
     escreverLinha(1, "Desvio de audio");
-    snprintf(texto, sizeof(texto), "%u kHz", configuracao.desvioAudioKhz);
-  } else if (item == Menu::AUDIO_MUDO) {
+    snprintf(texto, sizeof(texto), "%u kHz", estado.audio.desvioKhz);
+  } else if (navegacao.item == ItemPainel::AUDIO_MUDO) {
     escreverLinha(1, "Entrada de audio");
-    snprintf(texto, sizeof(texto), "%s", configuracao.audioMudo ? "MUTE" : "ATIVA");
+    snprintf(texto, sizeof(texto), "%s", estado.audio.mudo ? "MUTE" : "ATIVA");
   } else {
     escreverLinha(1, "Voltar");
     snprintf(texto, sizeof(texto), "Clique para voltar");
   }
   escreverLinha(2, texto);
-  mostrarAjudaEdicao(editando);
+  mostrarAjudaEdicao(navegacao.editando);
 }
 
-void Display::mostrarRds(
-    const ConfiguracaoTransmissor& configuracao,
-    uint8_t item,
-    bool editando,
-    uint8_t cursor
-) {
-  mostrarCabecalho("MENU RDS", item, Menu::QUANTIDADE_RDS);
+void Display::mostrarRds(const EstadoPainel& estado) {
+  const NavegacaoPainel& navegacao = estado.navegacao;
+  mostrarCabecalho("MENU RDS", navegacao.indice, navegacao.quantidade);
   char texto[21];
-  if (item == Menu::RDS_HABILITADO) {
+  if (navegacao.item == ItemPainel::RDS_HABILITADO) {
     escreverLinha(1, "Transmissao RDS");
-    snprintf(texto, sizeof(texto), "%s", configuracao.rdsHabilitado ? "RDS LIGADO" : "RDS DESLIGADO");
-  } else if (item == Menu::RDS_PS) {
+    snprintf(texto, sizeof(texto), "%s", estado.rds.habilitado ? "RDS LIGADO" : "RDS DESLIGADO");
+  } else if (navegacao.item == ItemPainel::RDS_PS) {
     escreverLinha(1, "Nome PS (8 chars)");
-    snprintf(texto, sizeof(texto), "%.8s", configuracao.rdsPs);
-  } else if (item == Menu::RDS_TEXTO) {
-    snprintf(texto, sizeof(texto), "RadioText pos %u/32", cursor + 1);
+    snprintf(texto, sizeof(texto), "%.8s", estado.rds.ps);
+  } else if (navegacao.item == ItemPainel::RDS_TEXTO) {
+    snprintf(
+        texto,
+        sizeof(texto),
+        "RadioText pos %u/32",
+        navegacao.cursorTexto + 1
+    );
     escreverLinha(1, texto);
-    const uint8_t inicio = cursor < 20 ? 0 : 12;
-    snprintf(texto, sizeof(texto), "%.20s", configuracao.rdsText + inicio);
-  } else if (item == Menu::RDS_PI) {
+    const uint8_t inicio = navegacao.cursorTexto < 20 ? 0 : 12;
+    snprintf(texto, sizeof(texto), "%.20s", estado.rds.texto + inicio);
+  } else if (navegacao.item == ItemPainel::RDS_PI) {
     escreverLinha(1, "PI Code");
-    snprintf(texto, sizeof(texto), "0x%04X", configuracao.rdsPi);
+    snprintf(texto, sizeof(texto), "0x%04X", estado.rds.pi);
   } else {
     escreverLinha(1, "Voltar");
     snprintf(texto, sizeof(texto), "Clique para voltar");
   }
   escreverLinha(2, texto);
 
-  if (editando && (item == Menu::RDS_PS || item == Menu::RDS_TEXTO)) {
-    const char caractere = item == Menu::RDS_PS
-        ? configuracao.rdsPs[cursor]
-        : configuracao.rdsText[cursor];
-    snprintf(texto, sizeof(texto), "Pos:%u Char:%c Clique>", cursor + 1, caractere);
+  if (navegacao.editando
+      && (navegacao.item == ItemPainel::RDS_PS
+          || navegacao.item == ItemPainel::RDS_TEXTO)) {
+    const char caractere = navegacao.item == ItemPainel::RDS_PS
+        ? estado.rds.ps[navegacao.cursorTexto]
+        : estado.rds.texto[navegacao.cursorTexto];
+    snprintf(
+        texto,
+        sizeof(texto),
+        "Pos:%u Char:%c Clique>",
+        navegacao.cursorTexto + 1,
+        caractere
+    );
     escreverLinha(3, texto);
   } else {
-    mostrarAjudaEdicao(editando);
+    mostrarAjudaEdicao(navegacao.editando);
   }
 }
 
-void Display::mostrarMonitor(const TelemetriaTransmissor& telemetria) {
+void Display::mostrarMonitor(const EstadoPainel& estado) {
   char texto[21];
   escreverLinha(0, "MONITOR DE AUDIO");
-  if (telemetria.transmitindo) {
+  if (estado.rf.transmitindo) {
     snprintf(
         texto,
         sizeof(texto),
         "Nivel: %4d dBFS",
-        telemetria.nivelAudioDbfs
+        estado.audio.nivelDbfs
     );
     escreverLinha(1, texto);
     escreverLinha(
         2,
-        (telemetria.asq & ASQ_SOBREMODULACAO) != 0
+        (estado.audio.asq & ASQ_SOBREMODULACAO) != 0
             ? "Estado: CORTE"
             : "Estado: OK"
     );
@@ -310,34 +301,40 @@ void Display::mostrarMonitor(const TelemetriaTransmissor& telemetria) {
   escreverLinha(3, "Clique/Segure: sair");
 }
 
-void Display::mostrarVarredura(
-    uint8_t item,
-    const TelemetriaTransmissor& telemetria,
-    uint16_t melhorFrequencia,
-    uint8_t melhorRuido
-) {
-  mostrarCabecalho("CANAL LIVRE", item, Menu::QUANTIDADE_VARREDURA);
+void Display::mostrarVarredura(const EstadoPainel& estado) {
+  const NavegacaoPainel& navegacao = estado.navegacao;
+  mostrarCabecalho(
+      "CANAL LIVRE",
+      navegacao.indice,
+      navegacao.quantidade
+  );
   char texto[21];
-  if (telemetria.varreduraAtiva) {
+  if (estado.varredura.ativa) {
     escreverLinha(1, "Medindo faixa FM...");
-    snprintf(texto, sizeof(texto), "Progresso: %u%%", telemetria.progressoVarredura);
+    snprintf(
+        texto,
+        sizeof(texto),
+        "Progresso: %u%%",
+        estado.varredura.progresso
+    );
     escreverLinha(2, texto);
     escreverLinha(3, "Encoder: cancelar");
     return;
   }
-  if (item == Menu::VARREDURA_INICIAR) {
+  if (navegacao.item == ItemPainel::VARREDURA_INICIAR) {
     escreverLinha(1, "Iniciar varredura");
     escreverLinha(2, "Clique para iniciar");
-  } else if (item == Menu::VARREDURA_USAR_MELHOR) {
+  } else if (navegacao.item == ItemPainel::VARREDURA_USAR_MELHOR) {
     escreverLinha(1, "Usar melhor canal");
-    if (telemetria.varreduraConcluida && melhorFrequencia != 0) {
+    if (estado.varredura.concluida
+        && estado.varredura.melhorFrequenciaKhz != 0) {
       snprintf(
           texto,
           sizeof(texto),
           "%u.%02u MHz N:%u",
-          melhorFrequencia / 100,
-          melhorFrequencia % 100,
-          melhorRuido
+          estado.varredura.melhorFrequenciaKhz / 100,
+          estado.varredura.melhorFrequenciaKhz % 100,
+          estado.varredura.melhorNivelRuido
       );
       escreverLinha(2, texto);
     } else {
@@ -350,20 +347,21 @@ void Display::mostrarVarredura(
   escreverLinha(3, "Gire  Clique: Sel");
 }
 
-void Display::mostrarSistema(uint8_t item) {
-  mostrarCabecalho("SISTEMA", item, Menu::QUANTIDADE_SISTEMA);
-  if (item == Menu::SISTEMA_SALVAR) {
+void Display::mostrarSistema(const EstadoPainel& estado) {
+  const NavegacaoPainel& navegacao = estado.navegacao;
+  mostrarCabecalho("SISTEMA", navegacao.indice, navegacao.quantidade);
+  if (navegacao.item == ItemPainel::SISTEMA_SALVAR) {
     escreverLinha(1, "Salvar configuracao");
     escreverLinha(2, "Gravar na memoria");
-  } else if (item == Menu::SISTEMA_PADROES) {
+  } else if (navegacao.item == ItemPainel::SISTEMA_PADROES) {
     escreverLinha(1, "Restaurar padroes");
     escreverLinha(2, "Clique para restaurar");
-  } else if (item == Menu::SISTEMA_WIFI) {
+  } else if (navegacao.item == ItemPainel::SISTEMA_WIFI) {
     escreverLinha(1, "Configurar Wi-Fi");
     escreverLinha(2, "Abrir portal local");
-  } else if (item == Menu::SISTEMA_INFO) {
+  } else if (navegacao.item == ItemPainel::SISTEMA_INFO) {
     escreverLinha(1, "Firmware ESP32-S3");
-    escreverLinha(2, Configuracao::VERSAO_FIRMWARE);
+    escreverLinha(2, estado.sistema.versaoFirmware);
   } else {
     escreverLinha(1, "Voltar");
     escreverLinha(2, "Clique para voltar");

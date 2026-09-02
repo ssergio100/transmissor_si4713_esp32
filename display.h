@@ -2,9 +2,8 @@
 
 #include <LiquidCrystal_I2C.h>
 
-#include "menu.h"
-#include "modelos.h"
-#include "receptor_rda5807.h"
+#include "configuracao.h"
+#include "estado_painel.h"
 
 class Display {
  public:
@@ -14,46 +13,17 @@ class Display {
   void mostrarInicializacao();
   void mostrarMensagem(const char* linha1, const char* linha2 = nullptr);
   void cancelarMensagem();
-  void renderizar(
-      const Menu& menu,
-      const ConfiguracaoTransmissor& configuracao,
-      const TelemetriaTransmissor& telemetria,
-      const TelemetriaReceptorRda5807& telemetriaReceptor,
-      uint16_t melhorFrequencia,
-      uint8_t melhorRuido
-  );
+  void renderizar(const EstadoPainel& estado);
 
  private:
-  void mostrarPrincipal(
-      const ConfiguracaoTransmissor& configuracao,
-      const TelemetriaTransmissor& telemetria,
-      const TelemetriaReceptorRda5807& telemetriaReceptor
-  );
-  void mostrarRaiz(uint8_t item);
-  void mostrarRf(
-      const ConfiguracaoTransmissor& configuracao,
-      uint8_t item,
-      bool editando
-  );
-  void mostrarAudio(
-      const ConfiguracaoTransmissor& configuracao,
-      uint8_t item,
-      bool editando
-  );
-  void mostrarRds(
-      const ConfiguracaoTransmissor& configuracao,
-      uint8_t item,
-      bool editando,
-      uint8_t cursor
-  );
-  void mostrarMonitor(const TelemetriaTransmissor& telemetria);
-  void mostrarVarredura(
-      uint8_t item,
-      const TelemetriaTransmissor& telemetria,
-      uint16_t melhorFrequencia,
-      uint8_t melhorRuido
-  );
-  void mostrarSistema(uint8_t item);
+  void mostrarPrincipal(const EstadoPainel& estado);
+  void mostrarRaiz(const NavegacaoPainel& navegacao);
+  void mostrarRf(const EstadoPainel& estado);
+  void mostrarAudio(const EstadoPainel& estado);
+  void mostrarRds(const EstadoPainel& estado);
+  void mostrarMonitor(const EstadoPainel& estado);
+  void mostrarVarredura(const EstadoPainel& estado);
+  void mostrarSistema(const EstadoPainel& estado);
   void mostrarCabecalho(const char* titulo, uint8_t item, uint8_t quantidade);
   void mostrarAjudaEdicao(bool editando);
   void escreverLinha(uint8_t linha, const char* texto);

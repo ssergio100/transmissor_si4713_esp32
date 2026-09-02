@@ -37,8 +37,10 @@ transmissor_si4713_esp32/
 ├── transmissor_si4713_esp32.ino  # inicialização e loop cooperativo
 ├── radio_si4713.*                # acesso exclusivo ao Si4713
 ├── transmissor.*                 # regras e estado compartilhado
+├── estado_painel.h               # snapshot semântico independente de hardware
+├── apresentacao.*                # traduz domínio e menu para o snapshot
 ├── rede.* / api.*                # Wi-Fi, REST e WebSocket
-├── display.* / menu.*            # LCD e navegação física
+├── display.* / menu.*            # renderizador LCD 20x4 e navegação física
 ├── interface-web/                # React + TypeScript + Vite
 ├── docs/API.md                   # contrato de comunicação
 └── docs/HARDWARE_BRINGUP.md      # ligações e testes de bancada
@@ -94,6 +96,8 @@ pinos e o roteiro seguro de primeira energização estão em
 
 - [`ANALISE_INICIAL.md`](ANALISE_INICIAL.md): decisões, referências e limites;
 - [`docs/API.md`](docs/API.md): endpoints, JSON, WebSocket e modo de erro;
+- [`docs/ARQUITETURA_DISPLAYS.md`](docs/ARQUITETURA_DISPLAYS.md): contrato
+  independente usado pelos renderizadores;
 - [`docs/referencias-visuais/painel-desktop.png`](docs/referencias-visuais/painel-desktop.png): conceito visual usado na implementação.
 
 ## Validação atual

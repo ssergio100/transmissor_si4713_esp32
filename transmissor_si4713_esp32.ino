@@ -2,6 +2,7 @@
 #include <Wire.h>
 
 #include "api.h"
+#include "apresentacao.h"
 #include "configuracao.h"
 #include "controles.h"
 #include "display.h"
@@ -158,14 +159,8 @@ bool processarControles() {
 }
 
 void renderizarDisplay() {
-  display.renderizar(
-      menu,
-      transmissor.configuracao(),
-      transmissor.telemetria(),
-      transmissor.telemetriaReceptor(),
-      transmissor.melhorFrequencia(),
-      transmissor.melhorNivelRuido()
-  );
+  const EstadoPainel estado = Apresentacao::gerar(menu, transmissor);
+  display.renderizar(estado);
 }
 
 }  // namespace
