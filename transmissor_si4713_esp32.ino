@@ -189,6 +189,12 @@ void setup() {
       static_cast<unsigned long>(Configuracao::FREQUENCIA_I2C_HZ)
   );
 
+  // O RDA5807 tambem responde em 0x60 no modo compativel com TEA5767. Uma
+  // varredura ampla depois da sintonia muda o canal fisico do receptor para
+  // zero sem atualizar o registrador 0x03. Execute o scan antes de configurar
+  // qualquer periferico; a inicializacao abaixo restabelece seus estados.
+  DiagnosticoI2c::executarNoBoot();
+
   controles.iniciar();
   Serial.println("[OK] Encoder inicializado");
   Serial.printf(
@@ -220,8 +226,6 @@ void setup() {
     Serial.println("[AVISO] Si4713 indisponivel; recuperacao automatica ativa");
     display.mostrarMensagem("Si4713 ausente", "Tentando recuperar");
   }
-
-  DiagnosticoI2c::executarNoBoot();
 
   if (!frasesRds.carregar()) {
     Serial.println("[AVISO] Frases RDS iniciadas com valores padrao");

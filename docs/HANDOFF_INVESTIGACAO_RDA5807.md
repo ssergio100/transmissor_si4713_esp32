@@ -190,3 +190,27 @@ git diff -- configuracao.h receptor_rda5807.cpp
 Começar pelo teste de uma estação FM conhecida com o Si4713 desligado. Não
 implementar ainda RDS, limiar configurável ou lógica definitiva de `No AR`.
 Primeiro provar que o RDA está fisicamente sintonizado na frequência indicada.
+
+## Causa confirmada posteriormente
+
+A causa do QRM foi o scanner I2C amplo executado depois da inicialização e da
+sintonia do RDA5807. O receptor também respondeu em `0x60`, sua interface
+compatível com TEA5767.
+
+Os dumps brutos mostraram:
+
+- depois de sintonizar o RDA, `0x03=0x4048` e `READCHAN=0x101`;
+- depois de ligar/configurar o Si4713, `READCHAN` continuou em `0x101` e o RSSI
+  subiu;
+- depois do scanner I2C, `0x03` permaneceu em `0x4048`, mas `READCHAN` caiu para
+  zero e o RSSI também caiu para zero.
+
+O LCD continuava mostrando 101,70 MHz porque a telemetria de frequência havia
+sido armazenada antes do scanner. Ao alterar a frequência pelo encoder depois
+do boot, uma nova sintonia foi executada e o RSSI do RDA voltou a subir,
+confirmando a causa no hardware.
+
+A correção adotada é executar a varredura ampla imediatamente depois de iniciar
+o `Wire`, antes de inicializar LCD, Si4713 e RDA5807. Assim qualquer efeito de
+uma sondagem de endereço é sobrescrito pela configuração posterior do respectivo
+periférico.
