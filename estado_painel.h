@@ -52,6 +52,7 @@ enum class ItemPainel : uint8_t {
   SISTEMA_SALVAR,
   SISTEMA_PADROES,
   SISTEMA_WIFI,
+  SISTEMA_RSSI_NO_AR,
   SISTEMA_INFO,
   SISTEMA_VOLTAR
 };
@@ -74,6 +75,7 @@ struct RfPainel {
   uint8_t capacitanciaEfetiva = 0;
   bool transmissaoHabilitada = false;
   bool transmitindo = false;
+  bool noArConfirmado = false;
 };
 
 struct AudioPainel {
@@ -95,8 +97,13 @@ struct RdsPainel {
 struct ReceptorPainel {
   uint16_t frequenciaKhz = 0;
   uint8_t rssi = 0;
+  uint8_t rssiMinimoNoAr = 0;
   bool disponivel = false;
   bool leituraRssiValida = false;
+  bool rdsSincronizado = false;
+  bool rdsTextoValido = false;
+  char rdsPs[9] = {};
+  char rdsTexto[65] = {};
 };
 
 struct VarreduraPainel {

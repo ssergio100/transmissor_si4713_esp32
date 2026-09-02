@@ -20,14 +20,27 @@ let state: DeviceState = {
     rdsText: 'Transmissor FM Si4713',
     rdsTemplate: '{data} {hora}',
     rdsSource: 'manual',
+    onAirRssiThreshold: 50,
   },
   applied: {
     onAir: false,
+    txActive: false,
     frequencyKhz: 9950,
     powerDbuv: 100,
     antennaCap: 52,
     audioLevelDbfs: -38,
     asq: 0,
+  },
+  receiver: {
+    available: true,
+    frequencyKhz: 9950,
+    rssi: 75,
+    rssiValid: true,
+    threshold: 50,
+    carrierDetected: false,
+    rdsSynchronized: true,
+    rdsPs: 'SI4713',
+    rdsText: 'Transmissor FM Si4713',
   },
   system: {
     si4713Available: true,
@@ -48,7 +61,7 @@ let state: DeviceState = {
     ip: '192.168.1.50',
     timeValid: true,
     uptimeMs: 120000,
-    firmwareVersion: '0.1.15',
+    firmwareVersion: '0.1.23-rda-rds',
     frequencyMinKhz: 7610,
     frequencyMaxKhz: 10800,
     frequencyStepKhz: 10,
@@ -92,12 +105,20 @@ export async function applySettings(settings: Settings): Promise<DeviceState> {
   state.desired = clone(settings)
   state.applied = {
     ...state.applied,
-    onAir: settings.txEnabled && state.system.si4713Available,
+    txActive: settings.txEnabled && state.system.si4713Available,
+    onAir: settings.txEnabled
+      && state.system.si4713Available
+      && state.receiver.rssi >= settings.onAirRssiThreshold,
     frequencyKhz: settings.frequencyKhz,
     powerDbuv: settings.powerDbuv,
     antennaCap: settings.antennaCap === 0
       ? state.applied.antennaCap || 52
       : settings.antennaCap,
+  }
+  state.receiver = {
+    ...state.receiver,
+    threshold: settings.onAirRssiThreshold,
+    carrierDetected: state.applied.onAir,
   }
   return clone(state)
 }
@@ -112,20 +133,28 @@ export async function previewFrequency(frequencyKhz: number): Promise<DeviceStat
   state.desired.frequencyKhz = frequencyKhz
   state.applied.frequencyKhz = frequencyKhz
   state.applied.onAir = false
+  state.applied.txActive = false
+  state.receiver.carrierDetected = false
   return clone(state)
 }
 
 export async function setTransmission(enabled: boolean): Promise<DeviceState> {
   if (!usingMock) return request('/api/v1/tx', { method: 'POST', body: JSON.stringify({ enabled }) })
   state.desired.txEnabled = enabled
-  state.applied.onAir = enabled && state.system.si4713Available
+  state.applied.txActive = enabled && state.system.si4713Available
+  state.applied.onAir = state.applied.txActive
+    && state.receiver.rssi >= state.desired.onAirRssiThreshold
+  state.receiver.carrierDetected = state.applied.onAir
   return clone(state)
 }
 
 export async function restartRf(): Promise<DeviceState> {
   if (!usingMock) return request('/api/v1/tx/restart', { method: 'POST' })
-  state.applied.onAir = state.desired.txEnabled
+  state.applied.txActive = state.desired.txEnabled
       && state.system.si4713Available
+  state.applied.onAir = state.applied.txActive
+      && state.receiver.rssi >= state.desired.onAirRssiThreshold
+  state.receiver.carrierDetected = state.applied.onAir
   return clone(state)
 }
 
@@ -153,8 +182,9 @@ export async function saveSettings(): Promise<void> {
 
 export async function restoreDefaults(): Promise<DeviceState> {
   if (!usingMock) return request('/api/v1/settings/defaults', { method: 'POST' })
-  state.desired = { ...state.desired, frequencyKhz: 9950, powerDbuv: 100, antennaCap: 0, txEnabled: false }
-  state.applied = { ...state.applied, frequencyKhz: 9950, powerDbuv: 100, antennaCap: 52, onAir: false }
+  state.desired = { ...state.desired, frequencyKhz: 9950, powerDbuv: 100, antennaCap: 0, txEnabled: false, onAirRssiThreshold: 50 }
+  state.applied = { ...state.applied, frequencyKhz: 9950, powerDbuv: 100, antennaCap: 52, onAir: false, txActive: false }
+  state.receiver = { ...state.receiver, frequencyKhz: 9950, threshold: 50, carrierDetected: false }
   return clone(state)
 }
 
@@ -163,6 +193,8 @@ export async function startScan(): Promise<DeviceState> {
   scan = { ...scan, running: true, finished: false, progress: 0 }
   state.system = { ...state.system, scanRunning: true, scanFinished: false, scanProgress: 0 }
   state.applied.onAir = false
+  state.applied.txActive = false
+  state.receiver.carrierDetected = false
   return clone(state)
 }
 
@@ -180,7 +212,11 @@ export async function applyScannedFrequency(frequencyKhz: number): Promise<Devic
   if (!usingMock) return request('/api/v1/scan/apply', { method: 'POST', body: JSON.stringify({ frequencyKhz }) })
   state.desired.frequencyKhz = frequencyKhz
   state.applied.frequencyKhz = frequencyKhz
-  state.applied.onAir = state.desired.txEnabled && state.system.si4713Available
+  state.applied.txActive = state.desired.txEnabled && state.system.si4713Available
+  state.applied.onAir = state.applied.txActive
+    && state.receiver.rssi >= state.desired.onAirRssiThreshold
+  state.receiver.frequencyKhz = frequencyKhz
+  state.receiver.carrierDetected = state.applied.onAir
   return clone(state)
 }
 

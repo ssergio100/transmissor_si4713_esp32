@@ -17,7 +17,7 @@ enum class FonteRadioText : uint8_t {
 
 struct ConfiguracaoTransmissor {
   static constexpr uint32_t MAGIC = 0x53493437;
-  static constexpr uint8_t VERSAO = 1;
+  static constexpr uint8_t VERSAO = 2;
 
   uint32_t magic = MAGIC;
   uint8_t versao = VERSAO;
@@ -35,6 +35,8 @@ struct ConfiguracaoTransmissor {
   char rdsPs[9] = "SI4713";
   char rdsText[33] = "Transmissor FM Si4713";
   char rdsModelo[33] = "{data} {hora}";
+  uint8_t rssiMinimoNoAr = Configuracao::RSSI_NO_AR_PADRAO;
+  uint8_t reservado[3] = {};
 
   void aplicarPadroes();
   void sanitizarTextos();

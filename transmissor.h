@@ -23,9 +23,11 @@ class Transmissor {
   bool iniciarAjusteFrequencia();
   bool previsualizarFrequencia(uint16_t frequenciaKhz);
   bool aplicarFrequencia(uint16_t frequenciaKhz);
+  bool atualizarLimiarRssiNoAr(uint8_t limiar);
   bool setLeituraAudio(bool habilitar);
   bool setLeituraAudioDisplay(bool habilitar);
   bool leituraAudioHabilitada() const;
+  bool noArConfirmado() const;
   bool reconhecerInterrupcaoSi4713();
 
   size_t quantidadeMedicoes() const;

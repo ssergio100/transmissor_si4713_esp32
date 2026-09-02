@@ -59,6 +59,7 @@ const char* rotuloItem(ItemPainel item) {
     case ItemPainel::SISTEMA_SALVAR: return "Salvar configuracao";
     case ItemPainel::SISTEMA_PADROES: return "Restaurar padroes";
     case ItemPainel::SISTEMA_WIFI: return "Configurar Wi-Fi";
+    case ItemPainel::SISTEMA_RSSI_NO_AR: return "Limiar NO AR";
     case ItemPainel::SISTEMA_INFO: return "Informacoes";
     case ItemPainel::SISTEMA_VOLTAR: return "Voltar";
 
@@ -205,13 +206,17 @@ void DisplayTft::mostrarPrincipal(const EstadoPainel& estado) {
       texto,
       sizeof(texto),
       "%s   %u dBuV",
-      estado.rf.transmitindo ? "NO AR" : "TX OFF",
+      estado.rf.noArConfirmado
+          ? "NO AR"
+          : (estado.rf.transmitindo ? "SEM RETORNO" : "TX OFF"),
       estado.rf.potenciaDbuv
   );
   escreverLinha(
       1,
       texto,
-      estado.rf.transmitindo ? COR_OK : COR_ERRO,
+      estado.rf.noArConfirmado
+          ? COR_OK
+          : (estado.rf.transmitindo ? COR_AVISO : COR_ERRO),
       2
   );
 
@@ -228,21 +233,22 @@ void DisplayTft::mostrarPrincipal(const EstadoPainel& estado) {
     snprintf(
         texto,
         sizeof(texto),
-        "RX %u.%02u MHz",
+        "RX %u.%02u  RSSI %u",
         estado.receptor.frequenciaKhz / 100,
-        estado.receptor.frequenciaKhz % 100
+        estado.receptor.frequenciaKhz % 100,
+        estado.receptor.rssi
     );
     escreverLinha(3, texto, COR_SUAVE, 2);
-    if (estado.receptor.leituraRssiValida) {
-      snprintf(texto, sizeof(texto), "RSSI %u", estado.receptor.rssi);
-    } else {
-      snprintf(texto, sizeof(texto), "RSSI ---");
-    }
-    escreverLinha(4, texto, COR_AVISO, 2);
   } else {
     escreverLinha(3, "RDA indisponivel", COR_ERRO, 2);
-    escreverLinha(4, "RSSI ---", COR_SUAVE, 2);
   }
+  formatarRdsRolante(estado.receptor, texto, sizeof(texto));
+  escreverLinha(
+      4,
+      texto,
+      estado.receptor.rdsTextoValido ? COR_DESTAQUE : COR_SUAVE,
+      2
+  );
   escreverRodape("Clique: menu", COR_SUAVE);
 }
 
@@ -534,6 +540,22 @@ void DisplayTft::mostrarSistema(const EstadoPainel& estado) {
         estado.sistema.recuperacoes
     );
     escreverLinha(3, texto, COR_TEXTO, 2);
+  } else if (estado.navegacao.item == ItemPainel::SISTEMA_RSSI_NO_AR) {
+    snprintf(
+        texto,
+        sizeof(texto),
+        "Limiar %u",
+        estado.receptor.rssiMinimoNoAr
+    );
+    escreverLinha(1, texto, COR_DESTAQUE, 3);
+    snprintf(texto, sizeof(texto), "RSSI atual %u", estado.receptor.rssi);
+    escreverLinha(2, texto, COR_AVISO, 2);
+    escreverLinha(
+        3,
+        estado.rf.noArConfirmado ? "Portadora confirmada" : "Sem retorno RF",
+        estado.rf.noArConfirmado ? COR_OK : COR_SUAVE,
+        2
+    );
   } else {
     escreverLinha(1, "Clique para executar", COR_DESTAQUE, 2);
     escreverLinha(
@@ -545,7 +567,12 @@ void DisplayTft::mostrarSistema(const EstadoPainel& estado) {
     limparLinhasAPartir(3);
   }
   limparLinhasAPartir(4);
-  escreverRodape("Gire: item  Segure: voltar", COR_SUAVE);
+  escreverRodape(
+      estado.navegacao.editando
+          ? "Gire: ajustar  Clique: OK"
+          : "Gire: item  Segure: voltar",
+      estado.navegacao.editando ? COR_AVISO : COR_SUAVE
+  );
 }
 
 void DisplayTft::mostrarRecuperacao() {
@@ -629,4 +656,63 @@ void DisplayTft::limparLinhasAPartir(uint8_t primeira) {
 
 void DisplayTft::invalidarCache() {
   memset(linhasRenderizadas_, 0, sizeof(linhasRenderizadas_));
+}
+
+void DisplayTft::formatarRdsRolante(
+    const ReceptorPainel& receptor,
+    char* destino,
+    size_t tamanhoDestino
+) {
+  constexpr size_t JANELA = 18;
+  constexpr size_t SEPARADOR = 3;
+  if (destino == nullptr || tamanhoDestino == 0) return;
+
+  if (!receptor.rdsTextoValido || receptor.rdsTexto[0] == '\0') {
+    snprintf(
+        destino,
+        tamanhoDestino,
+        "%s",
+        receptor.rdsSincronizado ? "RDS recebendo..." : "RDS aguardando..."
+    );
+    return;
+  }
+
+  if (strncmp(
+          ultimoRdsRolante_,
+          receptor.rdsTexto,
+          sizeof(ultimoRdsRolante_)
+      ) != 0) {
+    snprintf(
+        ultimoRdsRolante_,
+        sizeof(ultimoRdsRolante_),
+        "%s",
+        receptor.rdsTexto
+    );
+    deslocamentoRds_ = 0;
+    ultimaRolagemRdsMs_ = millis();
+  }
+
+  const size_t comprimento = strnlen(
+      ultimoRdsRolante_,
+      sizeof(ultimoRdsRolante_) - 1
+  );
+  if (comprimento <= JANELA) {
+    snprintf(destino, tamanhoDestino, "%s", ultimoRdsRolante_);
+    return;
+  }
+
+  const uint32_t agora = millis();
+  const size_t ciclo = comprimento + SEPARADOR;
+  if (agora - ultimaRolagemRdsMs_
+      >= Configuracao::INTERVALO_ATUALIZACAO_DISPLAY_MS) {
+    ultimaRolagemRdsMs_ = agora;
+    deslocamentoRds_ = static_cast<uint8_t>((deslocamentoRds_ + 1) % ciclo);
+  }
+
+  const size_t caracteres = min(JANELA, tamanhoDestino - 1);
+  for (size_t indice = 0; indice < caracteres; indice++) {
+    const size_t origem = (deslocamentoRds_ + indice) % ciclo;
+    destino[indice] = origem < comprimento ? ultimoRdsRolante_[origem] : ' ';
+  }
+  destino[caracteres] = '\0';
 }

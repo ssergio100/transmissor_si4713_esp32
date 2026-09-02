@@ -19,12 +19,15 @@ void ConfiguracaoTransmissor::aplicarPadroes() {
   copiarTextoPreenchido(rdsPs, 8, "SI4713");
   copiarTextoPreenchido(rdsText, 32, "Transmissor FM Si4713");
   copiarTextoPreenchido(rdsModelo, 32, "{data} {hora}");
+  rssiMinimoNoAr = Configuracao::RSSI_NO_AR_PADRAO;
+  memset(reservado, 0, sizeof(reservado));
 }
 
 void ConfiguracaoTransmissor::sanitizarTextos() {
   rdsPs[8] = '\0';
   rdsText[32] = '\0';
   rdsModelo[32] = '\0';
+  memset(reservado, 0, sizeof(reservado));
 
   char* textos[] = {rdsPs, rdsText, rdsModelo};
   const size_t comprimentos[] = {8, 32, 32};
@@ -55,6 +58,7 @@ bool ConfiguracaoTransmissor::valoresValidos() const {
       && desvioAudioKhz >= 50
       && desvioAudioKhz <= 66
       && capacitanciaAntena <= Configuracao::CAPACITANCIA_ANTENA_MAXIMA
+      && rssiMinimoNoAr <= Configuracao::RSSI_NO_AR_MAXIMO
       && static_cast<uint8_t>(fonteRadioText)
           <= static_cast<uint8_t>(FonteRadioText::MODELO);
 }

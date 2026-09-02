@@ -63,6 +63,14 @@ void executarAcao(
       }
       break;
 
+    case Menu::Acao::ATUALIZAR_LIMIAR_RSSI:
+      if (!transmissor.atualizarLimiarRssiNoAr(
+              configuracaoEditada.rssiMinimoNoAr
+          )) {
+        Serial.println("[AVISO] Limiar RSSI nao atualizado");
+      }
+      break;
+
     case Menu::Acao::SALVAR_CONFIGURACAO:
       if (transmissor.salvarConfiguracao()) {
         Serial.println("[NVS] Configuracao salva");

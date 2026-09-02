@@ -92,6 +92,7 @@ ItemPainel converterItem(Menu::Tela tela, uint8_t item) {
         case Menu::SISTEMA_SALVAR: return ItemPainel::SISTEMA_SALVAR;
         case Menu::SISTEMA_PADROES: return ItemPainel::SISTEMA_PADROES;
         case Menu::SISTEMA_WIFI: return ItemPainel::SISTEMA_WIFI;
+        case Menu::SISTEMA_RSSI_NO_AR: return ItemPainel::SISTEMA_RSSI_NO_AR;
         case Menu::SISTEMA_INFO: return ItemPainel::SISTEMA_INFO;
         case Menu::SISTEMA_VOLTAR: return ItemPainel::SISTEMA_VOLTAR;
       }
@@ -133,6 +134,7 @@ EstadoPainel Apresentacao::gerar(
   estado.rf.capacitanciaEfetiva = telemetria.capacitanciaEfetiva;
   estado.rf.transmissaoHabilitada = configuracao.transmissaoHabilitada;
   estado.rf.transmitindo = telemetria.transmitindo;
+  estado.rf.noArConfirmado = transmissor.noArConfirmado();
 
   estado.audio.preEnfaseUs = configuracao.preEnfaseUs;
   estado.audio.desvioKhz = configuracao.desvioAudioKhz;
@@ -148,8 +150,17 @@ EstadoPainel Apresentacao::gerar(
 
   estado.receptor.frequenciaKhz = receptor.frequenciaKhz;
   estado.receptor.rssi = receptor.rssi;
+  estado.receptor.rssiMinimoNoAr = configuracao.rssiMinimoNoAr;
   estado.receptor.disponivel = receptor.disponivel;
-  estado.receptor.leituraRssiValida = receptor.leituraDiretaValida;
+  estado.receptor.leituraRssiValida = receptor.leituraStatusValida;
+  estado.receptor.rdsSincronizado = receptor.rdsSincronizado;
+  estado.receptor.rdsTextoValido = receptor.rdsTextoValido;
+  memcpy(estado.receptor.rdsPs, receptor.rdsPs, sizeof(estado.receptor.rdsPs));
+  memcpy(
+      estado.receptor.rdsTexto,
+      receptor.rdsTexto,
+      sizeof(estado.receptor.rdsTexto)
+  );
 
   estado.varredura.melhorFrequenciaKhz = transmissor.melhorFrequencia();
   estado.varredura.melhorNivelRuido = transmissor.melhorNivelRuido();

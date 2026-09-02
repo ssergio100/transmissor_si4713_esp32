@@ -1,5 +1,6 @@
 #include "transmissor.h"
 
+#include <string.h>
 #include <time.h>
 
 #include "persistencia.h"
@@ -54,6 +55,19 @@ bool Transmissor::aplicarConfiguracao(ConfiguracaoTransmissor configuracao) {
   if (!configuracao.valoresValidos()) return false;
 
   const ConfiguracaoTransmissor anterior = configuracao_;
+  const uint8_t novoLimiarRssi = configuracao.rssiMinimoNoAr;
+  const bool limiarRssiMudou =
+      novoLimiarRssi != anterior.rssiMinimoNoAr;
+  configuracao.rssiMinimoNoAr = anterior.rssiMinimoNoAr;
+  const bool somenteLimiarRssi =
+      limiarRssiMudou
+      && memcmp(&configuracao, &anterior, sizeof(configuracao)) == 0;
+  configuracao.rssiMinimoNoAr = novoLimiarRssi;
+  if (somenteLimiarRssi) {
+    configuracao_ = configuracao;
+    return true;
+  }
+
   const bool deveSalvarFrequencia = ajusteFrequenciaAtivo_
       || configuracao.frequenciaKhz != anterior.frequenciaKhz;
   configuracao_ = configuracao;
@@ -132,6 +146,14 @@ bool Transmissor::leituraAudioHabilitada() const {
   return radio_.leituraAudioHabilitada();
 }
 
+bool Transmissor::noArConfirmado() const {
+  const TelemetriaReceptorRda5807& retorno = receptor_.telemetria();
+  return radio_.telemetria().transmitindo
+      && retorno.disponivel
+      && retorno.leituraStatusValida
+      && retorno.rssi >= configuracao_.rssiMinimoNoAr;
+}
+
 bool Transmissor::reconhecerInterrupcaoSi4713() {
   return radio_.reconhecerInterrupcao();
 }
@@ -170,6 +192,12 @@ bool Transmissor::aplicarFrequencia(uint16_t frequenciaKhz) {
   if (!aplicarConfiguracao(alterada)) return false;
   return persistenciaJaSolicitada
       || Persistencia::salvarFrequencia(frequenciaKhz);
+}
+
+bool Transmissor::atualizarLimiarRssiNoAr(uint8_t limiar) {
+  if (limiar > Configuracao::RSSI_NO_AR_MAXIMO) return false;
+  configuracao_.rssiMinimoNoAr = limiar;
+  return true;
 }
 
 size_t Transmissor::quantidadeMedicoes() const {

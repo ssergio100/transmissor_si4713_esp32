@@ -45,6 +45,11 @@ class DisplayTft {
   void escreverRodape(const char* texto, uint16_t cor);
   void limparLinhasAPartir(uint8_t primeira);
   void invalidarCache();
+  void formatarRdsRolante(
+      const ReceptorPainel& receptor,
+      char* destino,
+      size_t tamanhoDestino
+  );
 
   Adafruit_ST7789 tft_;
   bool pronto_ = false;
@@ -52,4 +57,7 @@ class DisplayTft {
   bool recuperacaoRenderizada_ = false;
   TelaPainel telaRenderizada_ = TelaPainel::PRINCIPAL;
   LinhaRenderizada linhasRenderizadas_[6] = {};
+  char ultimoRdsRolante_[65] = {};
+  uint8_t deslocamentoRds_ = 0;
+  uint32_t ultimaRolagemRdsMs_ = 0;
 };

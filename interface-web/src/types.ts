@@ -15,15 +15,29 @@ export interface Settings {
   rdsText: string
   rdsTemplate: string
   rdsSource: RdsSource
+  onAirRssiThreshold: number
 }
 
 export interface AppliedState {
   onAir: boolean
+  txActive: boolean
   frequencyKhz: number
   powerDbuv: number
   antennaCap: number
   audioLevelDbfs: number
   asq: number
+}
+
+export interface ReceiverState {
+  available: boolean
+  frequencyKhz: number
+  rssi: number
+  rssiValid: boolean
+  threshold: number
+  carrierDetected: boolean
+  rdsSynchronized: boolean
+  rdsPs: string
+  rdsText: string
 }
 
 export interface SystemState {
@@ -54,6 +68,7 @@ export interface SystemState {
 export interface DeviceState {
   desired: Settings
   applied: AppliedState
+  receiver: ReceiverState
   system: SystemState
 }
 

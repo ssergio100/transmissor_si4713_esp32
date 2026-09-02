@@ -18,6 +18,9 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
     if (tela_ == Tela::RF && item_ == RF_FREQUENCIA) {
       return Acao::APLICAR_FREQUENCIA;
     }
+    if (tela_ == Tela::SISTEMA && item_ == SISTEMA_RSSI_NO_AR) {
+      return Acao::ATUALIZAR_LIMIAR_RSSI;
+    }
     return Acao::APLICAR_CONFIGURACAO;
   }
 
@@ -38,6 +41,9 @@ Menu::Acao Menu::voltar() {
     editando_ = false;
     if (tela_ == Tela::RF && item_ == RF_FREQUENCIA) {
       return Acao::APLICAR_FREQUENCIA;
+    }
+    if (tela_ == Tela::SISTEMA && item_ == SISTEMA_RSSI_NO_AR) {
+      return Acao::ATUALIZAR_LIMIAR_RSSI;
     }
     return Acao::APLICAR_CONFIGURACAO;
   }
@@ -120,6 +126,15 @@ Menu::Acao Menu::girar(
       );
       return Acao::APLICAR_CONFIGURACAO;
     }
+  }
+
+  if (tela_ == Tela::SISTEMA && item_ == SISTEMA_RSSI_NO_AR) {
+    configuracao.rssiMinimoNoAr = constrain(
+        static_cast<int16_t>(configuracao.rssiMinimoNoAr) + deslocamento,
+        Configuracao::RSSI_NO_AR_MINIMO,
+        Configuracao::RSSI_NO_AR_MAXIMO
+    );
+    return Acao::ATUALIZAR_LIMIAR_RSSI;
   }
 
   return Acao::NENHUMA;
@@ -207,6 +222,7 @@ Menu::Acao Menu::selecionarSistema() {
   if (item_ == SISTEMA_SALVAR) return Acao::SALVAR_CONFIGURACAO;
   if (item_ == SISTEMA_PADROES) return Acao::RESTAURAR_PADROES;
   if (item_ == SISTEMA_WIFI) return Acao::CONFIGURAR_WIFI;
+  if (item_ == SISTEMA_RSSI_NO_AR) editando_ = true;
   if (item_ == SISTEMA_VOLTAR) entrar(Tela::RAIZ);
   return Acao::NENHUMA;
 }

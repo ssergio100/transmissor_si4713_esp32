@@ -175,7 +175,7 @@ void Api::responderMonitorAudio() {
   documento["levelDbfs"] = telemetria.nivelAudioDbfs;
   documento["asq"] = telemetria.asq;
   documento["overmodulation"] = (telemetria.asq & 0x04) != 0;
-  documento["onAir"] = telemetria.transmitindo;
+  documento["onAir"] = transmissor_.noArConfirmado();
   String resposta;
   serializeJson(documento, resposta);
   responderJson(200, resposta);
@@ -357,6 +357,11 @@ void Api::responderSaude() {
   documento["si4713LastInterrupt"] = nomeEventoSi4713(telemetria);
   documento["si4713InterruptPending"] =
       telemetria.alarmeInterrupcaoSi4713Pendente;
+  const TelemetriaReceptorRda5807& receptor =
+      transmissor_.telemetriaReceptor();
+  documento["rdaAvailable"] = receptor.disponivel;
+  documento["rdaRssi"] = receptor.rssi;
+  documento["rdaRdsSynchronized"] = receptor.rdsSincronizado;
   String resposta;
   serializeJson(documento, resposta);
   responderJson(200, resposta);
@@ -426,6 +431,9 @@ bool Api::preencherConfiguracao(
     configuracao.rdsHabilitado = documento["rdsEnabled"];
   }
   if (documento["rdsPi"].is<uint16_t>()) configuracao.rdsPi = documento["rdsPi"];
+  if (documento["onAirRssiThreshold"].is<uint8_t>()) {
+    configuracao.rssiMinimoNoAr = documento["onAirRssiThreshold"];
+  }
 
   if (!copiarCampoTexto(documento, "rdsPs", configuracao.rdsPs, 8, erro)
       || !copiarCampoTexto(documento, "rdsText", configuracao.rdsText, 32, erro)
@@ -477,14 +485,29 @@ String Api::serializarEstado(bool comTipo) const {
   desejado["rdsText"] = configuracao.rdsText;
   desejado["rdsTemplate"] = configuracao.rdsModelo;
   desejado["rdsSource"] = nomeFonteRadioText(configuracao.fonteRadioText);
+  desejado["onAirRssiThreshold"] = configuracao.rssiMinimoNoAr;
 
   JsonObject aplicado = documento["applied"].to<JsonObject>();
-  aplicado["onAir"] = telemetria.transmitindo;
+  aplicado["onAir"] = transmissor_.noArConfirmado();
+  aplicado["txActive"] = telemetria.transmitindo;
   aplicado["frequencyKhz"] = telemetria.frequenciaEfetivaKhz;
   aplicado["powerDbuv"] = telemetria.potenciaEfetivaDbuv;
   aplicado["antennaCap"] = telemetria.capacitanciaEfetiva;
   aplicado["audioLevelDbfs"] = telemetria.nivelAudioDbfs;
   aplicado["asq"] = telemetria.asq;
+
+  const TelemetriaReceptorRda5807& receptor =
+      transmissor_.telemetriaReceptor();
+  JsonObject retorno = documento["receiver"].to<JsonObject>();
+  retorno["available"] = receptor.disponivel;
+  retorno["frequencyKhz"] = receptor.frequenciaKhz;
+  retorno["rssi"] = receptor.rssi;
+  retorno["rssiValid"] = receptor.leituraStatusValida;
+  retorno["threshold"] = configuracao.rssiMinimoNoAr;
+  retorno["carrierDetected"] = transmissor_.noArConfirmado();
+  retorno["rdsSynchronized"] = receptor.rdsSincronizado;
+  retorno["rdsPs"] = receptor.rdsPsValido ? receptor.rdsPs : "";
+  retorno["rdsText"] = receptor.rdsTextoValido ? receptor.rdsTexto : "";
 
   JsonObject sistema = documento["system"].to<JsonObject>();
   sistema["si4713Available"] = telemetria.si4713Disponivel;
@@ -522,13 +545,13 @@ void Api::publicarTelemetriaAudio() {
   const bool audioMudou =
       telemetria.sequenciaAudio != ultimaSequenciaAudio_;
   const bool estadoNoArMudou =
-      telemetria.transmitindo != ultimoEstadoNoAr_;
+      transmissor_.noArConfirmado() != ultimoEstadoNoAr_;
   if (websocket_.connectedClients() == 0
       || (!audioMudou && !estadoNoArMudou)) {
     return;
   }
   ultimaSequenciaAudio_ = telemetria.sequenciaAudio;
-  ultimoEstadoNoAr_ = telemetria.transmitindo;
+  ultimoEstadoNoAr_ = transmissor_.noArConfirmado();
 
   JsonDocument documento;
   documento["type"] = "audio";
@@ -537,7 +560,7 @@ void Api::publicarTelemetriaAudio() {
   documento["levelDbfs"] = telemetria.nivelAudioDbfs;
   documento["asq"] = telemetria.asq;
   documento["overmodulation"] = (telemetria.asq & 0x04) != 0;
-  documento["onAir"] = telemetria.transmitindo;
+  documento["onAir"] = transmissor_.noArConfirmado();
 
   String mensagem;
   serializeJson(documento, mensagem);
@@ -592,6 +615,7 @@ uint32_t Api::assinaturaEstado() const {
   dobra(configuracao.transmissaoHabilitada);
   dobra(configuracao.rdsHabilitado);
   dobra(configuracao.audioMudo);
+  dobra(configuracao.rssiMinimoNoAr);
   dobra(static_cast<uint8_t>(configuracao.fonteRadioText));
   for (char caractere : configuracao.rdsPs) dobra(static_cast<uint8_t>(caractere));
   for (char caractere : configuracao.rdsText) {
@@ -615,6 +639,19 @@ uint32_t Api::assinaturaEstado() const {
   dobra(telemetria.ultimoEventoAsq);
   dobra(telemetria.ultimaInterrupcaoLida);
   dobra(telemetria.alarmeInterrupcaoSi4713Pendente);
+  const TelemetriaReceptorRda5807& receptor =
+      transmissor_.telemetriaReceptor();
+  dobra(receptor.disponivel);
+  dobra(receptor.frequenciaKhz);
+  dobra(receptor.rssi);
+  dobra(receptor.leituraStatusValida);
+  dobra(receptor.rdsSincronizado);
+  for (char caractere : receptor.rdsPs) {
+    dobra(static_cast<uint8_t>(caractere));
+  }
+  for (char caractere : receptor.rdsTexto) {
+    dobra(static_cast<uint8_t>(caractere));
+  }
   return assinatura;
 }
 

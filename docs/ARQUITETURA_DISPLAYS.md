@@ -58,6 +58,13 @@ modo somente escrita, apresenta todas as áreas do menu e mantém cache por linh
 uma mudança de RSSI, nível de áudio ou progresso atualiza apenas a região visual
 correspondente, sem reenviar o quadro inteiro.
 
+Na tela principal, `NO AR` não é mais inferido apenas do estado interno do
+Si4713. Ele exige TX efetivamente ativo e uma leitura válida do RDA5807 maior ou
+igual ao limiar configurado. O mesmo snapshot leva ao TFT o RadioText decodificado
+pelo RDA, e o driver percorre esse texto em uma janela rolante de 18 caracteres.
+Assim, a linha mostra o conteúdo recebido pelo enlace RF, não uma cópia direta do
+texto solicitado ao transmissor.
+
 A orientação confirmada na montagem é retrato com rotação `2` (180° em relação
 ao padrão do controlador), e a frequência SPI permanece no padrão da biblioteca.
 Cores e estabilidade elétrica ainda dependem dos testes de bancada. A ausência

@@ -102,7 +102,9 @@ void Display::mostrarPrincipal(const EstadoPainel& estado) {
       "FM %u.%02u MHz %s",
       estado.rf.frequenciaKhz / 100,
       estado.rf.frequenciaKhz % 100,
-      estado.rf.transmitindo ? "NO AR" : "OFF"
+      estado.rf.noArConfirmado
+          ? "NO AR"
+          : (estado.rf.transmitindo ? "SEM RF" : "OFF")
   );
   escreverLinha(0, texto);
   snprintf(
@@ -359,6 +361,17 @@ void Display::mostrarSistema(const EstadoPainel& estado) {
   } else if (navegacao.item == ItemPainel::SISTEMA_WIFI) {
     escreverLinha(1, "Configurar Wi-Fi");
     escreverLinha(2, "Abrir portal local");
+  } else if (navegacao.item == ItemPainel::SISTEMA_RSSI_NO_AR) {
+    escreverLinha(1, "Limiar NO AR (RSSI)");
+    char texto[21];
+    snprintf(
+        texto,
+        sizeof(texto),
+        "%u  atual:%u",
+        estado.receptor.rssiMinimoNoAr,
+        estado.receptor.rssi
+    );
+    escreverLinha(2, texto);
   } else if (navegacao.item == ItemPainel::SISTEMA_INFO) {
     escreverLinha(1, "Firmware ESP32-S3");
     escreverLinha(2, estado.sistema.versaoFirmware);
@@ -366,7 +379,10 @@ void Display::mostrarSistema(const EstadoPainel& estado) {
     escreverLinha(1, "Voltar");
     escreverLinha(2, "Clique para voltar");
   }
-  escreverLinha(3, "Gire  Clique: Sel");
+  escreverLinha(
+      3,
+      navegacao.editando ? "Gire  Clique: OK" : "Gire  Clique: Sel"
+  );
 }
 
 void Display::mostrarCabecalho(

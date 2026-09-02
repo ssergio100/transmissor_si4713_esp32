@@ -72,6 +72,13 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 - [ ] antes de conectar o TFT, confirmar 3,3 V entre `VCC` e `GND`;
 - [ ] conferir continuidade de `SDA` para GPIO11 e de `SCL` para GPIO12;
 - [ ] a tela de inicialização do TFT aparece antes da inicialização dos rádios;
+- [ ] com TX desligado, a tela principal não mostra `NO AR`, mesmo se houver
+      ruído ou outra estação na frequência;
+- [ ] com TX ligado, ajustar em `Sistema > Limiar NO AR` um valor entre o RSSI
+      de fundo e o RSSI medido com portadora;
+- [ ] confirmar `SEM RETORNO` abaixo do limiar e `NO AR` a partir do limiar;
+- [ ] confirmar que o TFT mostra e rola o RadioText recebido pelo RDA, não apenas
+      o texto configurado no Si4713;
 - [ ] perfil, flash e PSRAM conferidos no boot/build;
 - [ ] níveis ociosos do I2C medidos antes de conectar sinais;
 - [ ] scanner encontra LCD e Si4713 nos endereços esperados;
@@ -127,6 +134,10 @@ alimentado em 5 V, confirme fisicamente que o lado do ESP32/Si4713 permanece em
 - frequência SPI padrão da biblioteca Adafruit estável no cabeamento real; se
   necessário, fixar um valor medido sem alterar a pinagem acima.
 - orientação física do TFT confirmada em retrato com rotação `2` (180°).
+- limiar inicial de `NO AR`: RSSI `50`, provisório e persistente depois de salvo;
+  faixa permitida pelo registrador RSSI do RDA5807: `0..127`.
+- a leitura combinada RSSI/RDS permanece em uma transação I2C a cada 250 ms;
+  verificar se a rajada mais longa altera o ruído de áudio observado.
 
 O projeto do detector permanece documentado em
 [`../../hardware/detector_rf_si4713.md`](../../hardware/detector_rf_si4713.md),

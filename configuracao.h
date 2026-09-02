@@ -4,7 +4,7 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.22-tft-rotation";
+constexpr char VERSAO_FIRMWARE[] = "0.1.23-rda-rds";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
 
@@ -52,6 +52,10 @@ constexpr uint8_t LCD_LINHAS = 4;
 
 constexpr uint32_t TEMPO_PRESSIONAMENTO_LONGO_MS = 700;
 constexpr uint32_t INTERVALO_ATUALIZACAO_DISPLAY_MS = 250;
+// Uma leitura sequencial traz RSSI e os blocos RDS no mesmo acesso. A cadencia
+// permanece igual a antiga leitura isolada de RSSI para nao criar mais rajadas
+// periodicas no barramento compartilhado com o caminho de audio.
+constexpr uint32_t INTERVALO_LEITURA_RDA_MS = 250;
 // Confirmacoes ficam visiveis por um segundo completo, mas qualquer novo
 // evento do encoder as encerra imediatamente para manter o painel responsivo.
 constexpr uint32_t TEMPO_MENSAGEM_DISPLAY_MS = 1000;
@@ -70,6 +74,11 @@ constexpr uint16_t PASSO_FREQUENCIA_KHZ = 10;
 constexpr uint8_t POTENCIA_MINIMA_DBUV = 88;
 constexpr uint8_t POTENCIA_MAXIMA_DBUV = 118;
 constexpr uint8_t CAPACITANCIA_ANTENA_MAXIMA = 191;
+constexpr uint8_t RSSI_NO_AR_MINIMO = 0;
+constexpr uint8_t RSSI_NO_AR_MAXIMO = 127;
+// Ponto inicial usado pelos exemplos da biblioteca PU2CLR. Deve ser calibrado
+// no conjunto real pela tela Sistema; nao representa dBm.
+constexpr uint8_t RSSI_NO_AR_PADRAO = 50;
 
 constexpr long FUSO_HORARIO_SEGUNDOS = -3L * 60L * 60L;
 constexpr int AJUSTE_HORARIO_VERAO_SEGUNDOS = 0;

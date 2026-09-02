@@ -347,6 +347,7 @@ export default function App() {
     && draft.antennaCap !== device.applied.antennaCap
   const hasPendingRf = draft.frequencyKhz !== device.applied.frequencyKhz
     || draft.powerDbuv !== device.applied.powerDbuv
+    || draft.onAirRssiThreshold !== device.receiver.threshold
     || antennaPending
   const freqMinMhz = device.system.frequencyMinKhz / 100
   const freqMaxMhz = device.system.frequencyMaxKhz / 100
@@ -425,6 +426,8 @@ export default function App() {
               <span className={cn('applied-value', antennaPending && 'pending')}>
                 {draft.antennaCap === 0 && 'AUTO · '}{antennaPf(device.applied.antennaCap)} pF
               </span>
+              <NumericField label="Limiar NO AR" value={draft.onAirRssiThreshold} min={0} max={127} suffix="RSSI" onChange={(value) => set('onAirRssiThreshold', value)} />
+              <span className={cn('applied-value', draft.onAirRssiThreshold !== device.receiver.threshold && 'pending')}>Atual {device.receiver.rssi} · limiar {device.receiver.threshold}</span>
             </div>
             <div className="option-row">
               <fieldset><legend>Modo</legend><label><input type="radio" checked={draft.stereo} onChange={() => set('stereo', true)} /> Estéreo</label><label><input type="radio" checked={!draft.stereo} onChange={() => set('stereo', false)} /> Mono</label></fieldset>
