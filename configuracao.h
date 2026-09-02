@@ -12,6 +12,17 @@ constexpr int PIN_I2C_SDA = 17;
 constexpr int PIN_I2C_SCL = 18;
 constexpr uint32_t FREQUENCIA_I2C_HZ = 100000;
 
+// Display GMT020-02M(7P), controlador ST7789 e barramento SPI somente escrita.
+// No conector do modulo, SDA significa MOSI e SCL significa clock SPI; nao se
+// trata de um segundo barramento I2C. GPIO13 ocupa aqui a posicao MISO padrao
+// do perfil Arduino, que este display de sete pinos nao utiliza.
+constexpr int PIN_TFT_CS = 10;
+constexpr int PIN_TFT_MOSI = 11;
+constexpr int PIN_TFT_SCLK = 12;
+constexpr int PIN_TFT_MISO = -1;
+constexpr int PIN_TFT_DC = 13;
+constexpr int PIN_TFT_RESET = 14;
+
 constexpr int PIN_ENCODER_DT = 16;
 constexpr int PIN_ENCODER_CLK = 15;
 constexpr int PIN_ENCODER_BOTAO = 7;

@@ -42,19 +42,21 @@ de que o estado pode ser consumido sem dependência direta do domínio.
 
 ## Próximo display
 
-A integração física do novo display não faz parte desta etapa. Quando o módulo
-estiver disponível, devem ser confirmados no próprio hardware e na documentação
-correspondente:
+O módulo foi identificado como GMT020-02M(7P) v1.1: TFT IPS de 2 polegadas,
+240x320, controlador ST7789 e interface SPI de quatro fios. Apesar das inscrições
+`SDA` e `SCL` no conector, esses sinais são respectivamente MOSI e clock SPI; o
+módulo não é I2C.
 
-- controlador e revisão;
-- tensão de alimentação e de lógica;
-- endereço e pinagem I2C;
-- sequência de inicialização;
-- biblioteca compatível com Arduino ESP32 3.3.10.
+A pinagem reservada está em `configuracao.h`: GPIO10 (`CS`), GPIO11
+(`SDA/MOSI`), GPIO12 (`SCL/SCLK`), GPIO13 (`DC`) e GPIO14 (`RST`). A alimentação
+é 3,3 V. GPIO8 e GPIO9 ficam disponíveis para uma futura separação do barramento
+I2C do RDA5807.
 
-Depois dessa confirmação, o novo driver deve ficar em uma classe separada e
-implementar apenas a renderização de `EstadoPainel`. Nenhuma regra de rádio ou
-menu deve ser duplicada no driver.
+A sequência de inicialização, a frequência SPI e a biblioteca compatível com
+Arduino ESP32 3.3.10 serão definidas quando o driver for implementado e testado
+na bancada. Esse driver deve ficar em uma classe separada e implementar apenas
+a renderização de `EstadoPainel`; nenhuma regra de rádio ou menu deve ser
+duplicada nele.
 
 ## Limite atual
 

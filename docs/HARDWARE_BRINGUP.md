@@ -8,6 +8,8 @@
 - USB/porta: ainda não conectado nesta sessão;
 - módulo transmissor: mesmo CJMCU-4713/Si4713 do projeto original;
 - display: mesmo LCD I2C 20x4 do projeto original, endereço esperado `0x27`;
+- display TFT: GMT020-02M(7P) v1.1, 2 polegadas, controlador ST7789,
+  240x320, interface SPI de quatro fios e lógica/alimentação de 3,3 V;
 - encoder: mesmo encoder incremental com botão do projeto original.
 
 ## Fontes locais
@@ -19,6 +21,7 @@
 | Ligações e níveis do conjunto Si4713/LCD | `../README.md` |
 | Comportamento do Si4713 e endereços | `../transmissor_si4713/RadioController.h` |
 | Comandos e métricas | AN332 e datasheet do Si4713 |
+| Controlador, resolução, interface e tensão do TFT | especificação GMT020-02 da GoldenMorning e identificação visual do módulo GMT020-02M(7P) v1.1 |
 
 ## Mapa inicial
 
@@ -31,6 +34,33 @@
 | Encoder SW | 7 | entrada pull-up | clique curto e pressão longa |
 | Reset Si4713 | 5 | saída | confirmar nível no módulo antes de conectar |
 | Si4713 GP2/INT | 4 | entrada, sem pull | pulso ativo em LOW; não usar pull-up durante o reset |
+| TFT CS | 10 | saída | seleção do ST7789, ativa em LOW |
+| TFT SDA/MOSI | 11 | saída | dados do ESP32 para o TFT; não é SDA de I2C |
+| TFT SCL/SCLK | 12 | saída | clock SPI; não é SCL de I2C |
+| TFT DC | 13 | saída | seleção entre comando e dados |
+| TFT RST | 14 | saída | reset do módulo, ativo em LOW |
+
+O TFT deve ser ligado assim:
+
+| Pino no TFT | Ligação no ESP32-S3 |
+| --- | --- |
+| `CS` | GPIO10 |
+| `DC` | GPIO13 |
+| `RST` | GPIO14 |
+| `SDA` | GPIO11 (MOSI) |
+| `SCL` | GPIO12 (SCLK) |
+| `VCC` | 3V3 |
+| `GND` | GND comum |
+
+O módulo de sete pinos não expõe MISO nem controle separado do backlight. O
+GPIO13, que o perfil Arduino da placa nomeia como MISO padrão, pode portanto ser
+usado como `DC`. Se outro periférico SPI que exija leitura for acrescentado, o
+`DC` deverá ser remapeado. GPIO8 e GPIO9 permanecem livres para a possível
+separação futura do RDA5807 em outro controlador I2C.
+
+Não alimentar o TFT pelo pino de 5 V. A especificação elétrica do painel limita
+VCC e os sinais lógicos a 3,3 V em operação; a placa adaptadora da foto não
+indica conversão de nível.
 
 O LCD de 5 V e o Si4713 de 3,3 V permanecem separados pelo mesmo conversor de
 nível lógico BSS138 do transmissor original. O ESP32 usa lógica de 3,3 V; a
@@ -39,6 +69,9 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 ## Verificação em camadas
 
 - [ ] Placa sozinha inicia e produz log serial;
+- [ ] antes de conectar o TFT, confirmar 3,3 V entre `VCC` e `GND`;
+- [ ] conferir continuidade de `SDA` para GPIO11 e de `SCL` para GPIO12;
+- [ ] primeiro teste do TFT exibe padrão de cores sem inicializar os rádios;
 - [ ] perfil, flash e PSRAM conferidos no boot/build;
 - [ ] níveis ociosos do I2C medidos antes de conectar sinais;
 - [ ] scanner encontra LCD e Si4713 nos endereços esperados;
@@ -91,6 +124,8 @@ alimentado em 5 V, confirme fisicamente que o lado do ESP32/Si4713 permanece em
 - cadência estável de leitura ASQ com LCD, Wi-Fi e telemetria ativos;
 - detector físico de portadora adiado; o GPIO4 está ocupado por GP2/INT;
 - validação RF, áudio e RDS no equipamento de medição/recepção.
+- frequência SPI estável do TFT; será definida com o driver e validada na
+  bancada, sem alterar a pinagem acima.
 
 O projeto do detector permanece documentado em
 [`../../hardware/detector_rf_si4713.md`](../../hardware/detector_rf_si4713.md),
