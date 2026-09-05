@@ -221,6 +221,27 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
     }
   }
 
+  if (baseRdsMudou || primeiraAplicacao
+      || configuracao.estereo != configuracaoAplicada_.estereo) {
+    uint16_t componentes = 0, desvio = 0, pi = 0;
+    if (!confirmarOperacao(
+            radio_.getProperty(SI4713_PROP_TX_COMPONENT_ENABLE, componentes)
+                && radio_.getProperty(SI4713_PROP_TX_RDS_DEVIATION, desvio)
+                && radio_.getProperty(SI4713_PROP_TX_RDS_PI, pi),
+            "confirmar propriedades RDS", true)) return false;
+    const uint16_t esperado = (configuracao.estereo ? 3 : 0)
+        | (configuracao.rdsHabilitado ? 4 : 0);
+    Serial.printf("[SI4713][RDS] lido do chip: componentes=0x%04X "
+        "RDS=%u piloto=%u L-R=%u desvio=%uHz PI=0x%04X\n",
+        componentes, (componentes >> 2) & 1, componentes & 1,
+        (componentes >> 1) & 1, desvio * 10U, pi);
+    if (componentes != esperado
+        || (configuracao.rdsHabilitado && (desvio != 200 || pi != configuracao.rdsPi))) {
+      Serial.println("[SI4713][RDS] ERRO: propriedades nao conferem com a configuracao");
+      return false;
+    }
+  }
+
   if (potenciaMudou) {
     if (configuracao.transmissaoHabilitada) {
       if (!confirmarOperacao(
@@ -262,6 +283,15 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
     return false;
   }
   transmissaoPausadaParaAjuste_ = false;
+  if (baseRdsMudou || nomeRdsMudou || textoRdsMudou || estadoRfMudou) {
+    Serial.printf("[SI4713][RDS] configurado=%s TX=%s PI=0x%04X\n",
+        configuracao.rdsHabilitado ? "ATIVO" : "DESATIVADO",
+        telemetria_.transmitindo ? "LIGADO" : "DESLIGADO", configuracao.rdsPi);
+    if (configuracao.rdsHabilitado) {
+      Serial.printf("[SI4713][RDS][PS] %.8s\n", configuracao.rdsPs);
+      Serial.printf("[SI4713][RDS][RT] %.32s\n", configuracao.rdsText);
+    }
+  }
   return true;
 }
 

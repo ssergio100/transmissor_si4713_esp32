@@ -122,8 +122,7 @@ bool Si4713Seguro::setProperty(uint16_t propriedade, uint16_t valor) {
 }
 
 bool Si4713Seguro::beginRDS(uint16_t pi) {
-  return setProperty(SI4713_PROP_TX_AUDIO_DEVIATION, 6625)
-      && setProperty(SI4713_PROP_TX_RDS_DEVIATION, 200)
+  return setProperty(SI4713_PROP_TX_RDS_DEVIATION, 200)
       && setProperty(SI4713_PROP_TX_RDS_INTERRUPT_SOURCE, 1)
       && setProperty(SI4713_PROP_TX_RDS_PI, pi)
       && setProperty(SI4713_PROP_TX_RDS_PS_MIX, 3)
@@ -131,8 +130,21 @@ bool Si4713Seguro::beginRDS(uint16_t pi) {
       && setProperty(SI4713_PROP_TX_RDS_PS_REPEAT_COUNT, 3)
       && setProperty(SI4713_PROP_TX_RDS_MESSAGE_COUNT, 1)
       && setProperty(SI4713_PROP_TX_RDS_PS_AF, 0xE0E0)
-      && setProperty(SI4713_PROP_TX_RDS_FIFO_SIZE, 0)
-      && setProperty(SI4713_PROP_TX_COMPONENT_ENABLE, 7);
+      && setProperty(SI4713_PROP_TX_RDS_FIFO_SIZE, 0);
+}
+
+bool Si4713Seguro::getProperty(uint16_t propriedade, uint16_t& valor) {
+  // AN332 GET_PROPERTY: STATUS, reservado, valor alto, valor baixo.
+  const uint8_t comando[] = {
+      0x13, 0, static_cast<uint8_t>(propriedade >> 8),
+      static_cast<uint8_t>(propriedade)
+  };
+  uint8_t resposta[4];
+  if (!executarComando(comando, sizeof(comando), resposta, sizeof(resposta))) {
+    return false;
+  }
+  valor = (static_cast<uint16_t>(resposta[2]) << 8) | resposta[3];
+  return true;
 }
 
 bool Si4713Seguro::setRDSstation(const char* texto) {
@@ -149,15 +161,19 @@ bool Si4713Seguro::setRDSstation(const char* texto) {
 }
 
 bool Si4713Seguro::setRDSbuffer(const char* texto) {
-  char preenchido[32];
+  char preenchido[36];
   memset(preenchido, ' ', sizeof(preenchido));
-  memcpy(preenchido, texto, min(strlen(texto), sizeof(preenchido)));
-  for (uint8_t bloco = 0; bloco < 8; bloco++) {
+  const size_t tamanho = min(strlen(texto), static_cast<size_t>(32));
+  memcpy(preenchido, texto, tamanho);
+  preenchido[tamanho] = '\r';
+  const bool novoAb = !rdsTextoAb_;
+  const uint8_t grupos = static_cast<uint8_t>((tamanho + 4) / 4);
+  for (uint8_t bloco = 0; bloco < grupos; bloco++) {
     uint8_t comando[8] = {
         CMD_TX_RDS_BUFF,
         static_cast<uint8_t>(bloco == 0 ? 0x06 : 0x04),
         0x20,
-        bloco,
+        static_cast<uint8_t>(bloco | (novoAb ? 0x10 : 0)),
         0,
         0,
         0,
@@ -167,6 +183,7 @@ bool Si4713Seguro::setRDSbuffer(const char* texto) {
     uint8_t status = 0;
     if (!executarComando(comando, sizeof(comando), &status, 1)) return false;
   }
+  rdsTextoAb_ = novoAb;
   return true;
 }
 

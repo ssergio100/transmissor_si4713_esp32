@@ -30,6 +30,7 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
   radio_.setVolume(7);
   radio_.setMute(false);
   radio_.setMono(true);
+  radio_.setRDS(false);  // Receptor usado somente para sintonia e RSSI.
   telemetria_.disponivel = true;
 
   if (!sintonizar(frequenciaKhz)) {

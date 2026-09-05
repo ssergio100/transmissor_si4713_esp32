@@ -10,7 +10,7 @@ profiles:
       - Adafruit GFX Library (1.12.6)
       - Adafruit ST7735 and ST7789 Library (1.11.0)
       - Ai Esp32 Rotary Encoder (1.7)
-      - Bounce2 (2.72)
+      - Bounce2 (2.71)
       - LiquidCrystal I2C (1.1.2)
       - ArduinoJson (7.4.3)
       - WiFiManager (2.0.17)

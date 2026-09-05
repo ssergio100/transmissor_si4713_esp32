@@ -38,6 +38,7 @@ class Si4713Seguro {
   bool readTuneStatus();
   bool readASQ(bool reconhecerInterrupcao = false);
   bool setProperty(uint16_t propriedade, uint16_t valor);
+  bool getProperty(uint16_t propriedade, uint16_t& valor);
   bool beginRDS(uint16_t pi);
   bool setRDSstation(const char* texto);
   bool setRDSbuffer(const char* texto);
@@ -81,6 +82,7 @@ class Si4713Seguro {
   bool ler(uint8_t* dados, size_t tamanho);
   bool falhar(const char* detalhe);
 
+  bool rdsTextoAb_ = false;
   int8_t pinoReset_;
   uint8_t endereco_ = 0;
   TwoWire* wire_ = nullptr;

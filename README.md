@@ -11,7 +11,8 @@ React é uma segunda forma de operação sobre o mesmo estado do transmissor.
 - LCD 20x4 e encoder com clique, giro e pressão longa;
 - giro decodificado por `AiEsp32RotaryEncoder`, com um evento por detente;
   clique curto e pressão longa são classificados uma única vez na soltura;
-- configuração e frases RDS persistidas em NVS;
+- configuração e frases RDS de transmissão persistidas em NVS;
+- RDA5807 para sintonia e RSSI, com recepção RDS desabilitada;
 - RadioText manual, frase salva, hora, data, data/hora e modelo com tokens;
 - varredura completa de 76,1 a 108,0 MHz e aplicação direta de qualquer
   frequência medida;
