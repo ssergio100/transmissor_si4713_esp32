@@ -1,6 +1,6 @@
 # Transmissor Si4713 com ESP32-S3
 
-Projeto independente para controlar o módulo Si4713, LCD I2C 20x4 e encoder com
+Projeto independente para controlar o módulo Si4713, TFT SPI ST7789 e encoder com
 uma ESP32-S3-DevKitC-1 N16R8. O painel físico funciona sem rede; a interface
 React é uma segunda forma de operação sobre o mesmo estado do transmissor.
 
@@ -8,7 +8,7 @@ React é uma segunda forma de operação sobre o mesmo estado do transmissor.
 
 - controle do Si4713 com frequência, potência, antena, estéreo, pré-ênfase,
   desvio, mute, transmissão e recuperação automática;
-- LCD 20x4 e encoder com clique, giro e pressão longa;
+- TFT ST7789 e encoder com clique, giro e pressão longa;
 - giro decodificado por `AiEsp32RotaryEncoder`, com um evento por detente;
   clique curto e pressão longa são classificados uma única vez na soltura;
 - configuração e frases RDS de transmissão persistidas em NVS;
@@ -19,12 +19,12 @@ React é uma segunda forma de operação sobre o mesmo estado do transmissor.
 - provisionamento pelo WiFiManager, sem SSID ou senha no código;
 - API REST na porta 80 e estado/telemetria por WebSocket na porta 81;
 - GP2/INT do Si4713 no GPIO4, inicialmente para alertar sobremodulação sem
-  polling contínuo, com alerta travado e reconhecimento pelo LCD ou pela web;
+  polling contínuo, com alerta travado e reconhecimento pelo TFT ou pela web;
 - monitor local por demanda: a leitura ASQ funciona somente enquanto a tela
   `Monitor` está aberta e exibe apenas nível e `OK`/`CORTE`;
 - restauração de transmissão no boot com conclusão e reconhecimento separados
   para sintonia e potência; `NO AR` só aparece depois da sequência completa;
-- ajuste de frequência seguro no LCD e na web: o TX é pausado no primeiro
+- ajuste de frequência seguro no TFT e na web: o TX é pausado no primeiro
   passo, cada passo ressintoniza fora do ar e a confirmação grava a frequência
   em uma chave própria da NVS antes de restaurar o estado anterior do TX;
 - interface React/Vite responsiva, com modo de simulação para desenvolvimento.
@@ -41,7 +41,7 @@ transmissor_si4713_esp32/
 ├── estado_painel.h               # snapshot semântico independente de hardware
 ├── apresentacao.*                # traduz domínio e menu para o snapshot
 ├── rede.* / api.*                # Wi-Fi, REST e WebSocket
-├── display.* / menu.*            # renderizador LCD 20x4 e navegação física
+├── display_tft.* / menu.*            # renderizador TFT ST7789 e navegação física
 ├── interface-web/                # React + TypeScript + Vite
 ├── docs/API.md                   # contrato de comunicação
 └── docs/HARDWARE_BRINGUP.md      # ligações e testes de bancada
@@ -65,7 +65,7 @@ VITE_USE_MOCK=false
 VITE_DEVICE_URL=http://transmissor-si4713.local
 ```
 
-Também é possível substituir o nome local pelo IP mostrado no LCD ou no log
+Também é possível substituir o nome local pelo IP mostrado no TFT ou no log
 serial. Reinicie o Vite depois de alterar o arquivo.
 
 ## Provisionamento Wi-Fi
@@ -108,7 +108,3 @@ pinos e o roteiro seguro de primeira energização estão em
 - frontend: TypeScript e build de produção concluídos;
 - navegador: tela desktop verificada e início de transmissão simulado validado;
 - hardware: ainda depende da conferência das ligações e do teste com a placa real.
-
-O aviso de arquitetura emitido pela biblioteca `LiquidCrystal I2C` é conhecido:
-ela declara AVR no manifesto, embora tenha compilado para ESP32. A resposta real
-do LCD será confirmada no teste de bancada antes de considerar o hardware fechado.

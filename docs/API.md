@@ -151,7 +151,7 @@ para identificar o evento, mas não o reconhece automaticamente.
 
 `enabled`/`requested` representam a solicitação web. `active` informa se a
 leitura está efetivamente ativa, inclusive quando foi solicitada localmente
-pela tela `Monitor` do LCD.
+pela tela `Monitor` do TFT.
 
 Segurança contra autonomia: mesmo com `PUT .../monitor {"enabled":true}` ativo,
 se não houver cliente WebSocket conectado à porta 81 por 5 segundos, o ESP
@@ -211,7 +211,7 @@ A transmissão anterior é restaurada quando a varredura termina. Aplicar uma
 frequência pela rota `scan/apply` pausa a saída durante a ressintonia, confirma
 o valor efetivo, persiste a escolha e então restaura o estado anterior do TX.
 
-Na edição interativa, LCD e web usam `frequency/adjust` para cada passo. A
+Na edição interativa, TFT e web usam `frequency/adjust` para cada passo. A
 primeira chamada zera a potência RF e as seguintes mantêm o TX pausado. A
 confirmação por `PUT /settings` aplica o valor final, grava somente a frequência
 na chave dedicada da NVS e restaura o estado de transmissão que já estava

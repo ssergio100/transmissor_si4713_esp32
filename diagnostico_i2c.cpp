@@ -98,11 +98,6 @@ void DiagnosticoI2c::executarNoBoot() {
   }
 
   imprimirResultadoConhecido(
-      "LCD",
-      Configuracao::LCD_ENDERECO,
-      resultados[Configuracao::LCD_ENDERECO]
-  );
-  imprimirResultadoConhecido(
       "Si4713-A",
       SI4710_ADDR1,
       resultados[SI4710_ADDR1]

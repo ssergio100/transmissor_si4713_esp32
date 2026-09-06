@@ -5,7 +5,6 @@
 #include "apresentacao.h"
 #include "configuracao.h"
 #include "controles.h"
-#include "display.h"
 #include "display_tft.h"
 #include "diagnostico_i2c.h"
 #include "frases_rds.h"
@@ -14,7 +13,6 @@
 #include "transmissor.h"
 
 Controles controles;
-Display display;
 DisplayTft displayTft;
 Menu menu;
 Transmissor transmissor;
@@ -56,27 +54,22 @@ void executarAcao(
             "[NVS] Frequencia aplicada e salva: %u\n",
             configuracaoEditada.frequenciaKhz
         );
-        display.mostrarMensagem("Frequencia salva", "Transmissao restaurada");
       } else {
         Serial.println("[ERRO] Falha ao aplicar ou salvar frequencia");
-        display.mostrarMensagem("Falha na frequencia", "Verifique o log");
       }
       break;
 
     case Menu::Acao::SALVAR_CONFIGURACAO:
       if (transmissor.salvarConfiguracao()) {
         Serial.println("[NVS] Configuracao salva");
-        display.mostrarMensagem("Configuracao salva", "Memoria atualizada");
       } else {
         Serial.println("[ERRO] Falha ao salvar configuracao");
-        display.mostrarMensagem("Falha ao salvar", "Verifique o log");
       }
       break;
 
     case Menu::Acao::RESTAURAR_PADROES:
       if (transmissor.restaurarPadroes()) {
         Serial.println("[SISTEMA] Padroes restaurados");
-        display.mostrarMensagem("Padroes restaurados", "TX desligado");
       }
       break;
 
@@ -96,7 +89,6 @@ void executarAcao(
 
     case Menu::Acao::CONFIGURAR_WIFI:
       Rede::abrirPortalConfiguracao();
-      display.mostrarMensagem("Portal Wi-Fi ativo", "192.168.4.1");
       break;
 
     default:
@@ -107,7 +99,6 @@ void executarAcao(
 bool processarControles() {
   const Controles::Evento evento = controles.consumirEvento();
   if (evento.tipo == Controles::TipoEvento::NENHUM) return false;
-  display.cancelarMensagem();
 
   if (transmissor.telemetria().varreduraAtiva) {
     if (transmissor.cancelarVarredura()) {
@@ -162,7 +153,6 @@ bool processarControles() {
 
 void renderizarDisplay() {
   const EstadoPainel estado = Apresentacao::gerar(menu, transmissor);
-  display.renderizar(estado);
   displayTft.renderizar(estado);
 }
 
@@ -208,13 +198,6 @@ void setup() {
       static_cast<unsigned long>(Configuracao::TEMPO_PRESSIONAMENTO_LONGO_MS)
   );
 
-  if (display.iniciar()) {
-    display.mostrarInicializacao();
-    Serial.println("[OK] LCD 20x4 encontrado em 0x27");
-  } else {
-    Serial.println("[AVISO] LCD nao respondeu em 0x27");
-  }
-
   if (displayTft.iniciar()) {
     displayTft.mostrarInicializacao();
     Serial.printf(
@@ -239,7 +222,6 @@ void setup() {
     );
   } else {
     Serial.println("[AVISO] Si4713 indisponivel; recuperacao automatica ativa");
-    display.mostrarMensagem("Si4713 ausente", "Tentando recuperar");
   }
 
   if (!frasesRds.carregar()) {

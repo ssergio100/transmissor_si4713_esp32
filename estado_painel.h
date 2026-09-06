@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // Contrato semantico consumido por qualquer interface visual. Este arquivo nao
-// conhece LCD, I2C, SPI, coordenadas, cores nem as classes internas do radio.
+// conhece I2C, SPI, coordenadas, cores nem as classes internas do radio.
 
 enum class TelaPainel : uint8_t {
   PRINCIPAL = 0,

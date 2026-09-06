@@ -16,8 +16,8 @@ Apresentacao::gerar()
    EstadoPainel
       /     \
      v       v
-LCD 20x4   display futuro
-  I2C       driver próprio
+TFT ST7789  display futuro
+  SPI        driver próprio
 ```
 
 ## Contrato semântico
@@ -37,10 +37,10 @@ fonte, texto limitado a 20 colunas ou chamadas de biblioteca. Um renderizador
 pode decidir livremente como representar cada valor.
 
 `apresentacao.cpp` é o único adaptador entre as classes internas e esse contrato.
-O LCD 20x4 recebe agora somente um `EstadoPainel`; portanto, ele serve como prova
+O TFT ST7789 recebe somente um `EstadoPainel`; portanto, ele serve como prova
 de que o estado pode ser consumido sem dependência direta do domínio.
 
-## Próximo display
+## Display atual
 
 O módulo foi identificado como GMT020-02M(7P) v1.1: TFT IPS de 2 polegadas,
 240x320, controlador ST7789 e interface SPI de quatro fios. Apesar das inscrições
@@ -53,7 +53,7 @@ A pinagem reservada está em `configuracao.h`: GPIO10 (`CS`), GPIO11
 I2C do RDA5807.
 
 O driver inicial está isolado em `display_tft.h/.cpp`, usa Adafruit ST7789 e
-recebe o mesmo `EstadoPainel` entregue ao LCD. Ele inicializa o hardware SPI em
+recebe o `EstadoPainel` gerado pela apresentação. Ele inicializa o hardware SPI em
 modo somente escrita, apresenta todas as áreas do menu e mantém cache por linha:
 uma mudança de RSSI, nível de áudio ou progresso atualiza apenas a região visual
 correspondente, sem reenviar o quadro inteiro.
@@ -67,6 +67,6 @@ confirmada visualmente.
 
 ## Limite atual
 
-As mensagens transitórias (`mostrarMensagem`) ainda pertencem ao LCD 20x4. Para
-que confirmações como “Configuração salva” também apareçam no TFT, essas
-notificações devem migrar para o contrato de apresentação.
+O suporte ao LCD 20×4 foi removido. Confirmações de salvar, restaurar padrões
+e falhas continuam no log serial. O TFT apresenta o estado e os menus;
+notificações transitórias ainda não fazem parte do contrato de apresentação.

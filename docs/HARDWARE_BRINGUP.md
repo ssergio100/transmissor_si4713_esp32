@@ -7,7 +7,6 @@
 - framework: Arduino core ESP32 3.3.10;
 - USB/porta: ainda não conectado nesta sessão;
 - módulo transmissor: mesmo CJMCU-4713/Si4713 do projeto original;
-- display: mesmo LCD I2C 20x4 do projeto original, endereço esperado `0x27`;
 - display TFT: GMT020-02M(7P) v1.1, 2 polegadas, controlador ST7789,
   240x320, interface SPI de quatro fios e lógica/alimentação de 3,3 V;
 - encoder: mesmo encoder incremental com botão do projeto original.
@@ -18,7 +17,7 @@
 | --- | --- |
 | Perfil ESP32-S3 e memória | `../radio_web_1/sketch.yaml` |
 | I2C GPIO17/18 e encoder GPIO16/15/7 | `../radio_web_1/configuracao.h` |
-| Ligações e níveis do conjunto Si4713/LCD | `../README.md` |
+| Ligações originais do Si4713 | `../README.md` |
 | Comportamento do Si4713 e endereços | `../transmissor_si4713/RadioController.h` |
 | Comandos e métricas | AN332 e datasheet do Si4713 |
 | Controlador, resolução, interface e tensão do TFT | especificação GMT020-02 da GoldenMorning e identificação visual do módulo GMT020-02M(7P) v1.1 |
@@ -62,9 +61,8 @@ Não alimentar o TFT pelo pino de 5 V. A especificação elétrica do painel lim
 VCC e os sinais lógicos a 3,3 V em operação; a placa adaptadora da foto não
 indica conversão de nível.
 
-O LCD de 5 V e o Si4713 de 3,3 V permanecem separados pelo mesmo conversor de
-nível lógico BSS138 do transmissor original. O ESP32 usa lógica de 3,3 V; a
-ligação final deve reproduzir os lados corretos do conversor e o GND comum.
+O LCD 20×4 foi removido do firmware. A montagem e os pull-ups do barramento
+I2C devem ser conferidos na bancada após a retirada física do módulo.
 
 ## Verificação em camadas
 
@@ -74,8 +72,8 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 - [ ] a tela de inicialização do TFT aparece antes da inicialização dos rádios;
 - [ ] perfil, flash e PSRAM conferidos no boot/build;
 - [ ] níveis ociosos do I2C medidos antes de conectar sinais;
-- [ ] scanner encontra LCD e Si4713 nos endereços esperados;
-- [ ] LCD exibe a tela inicial;
+- [ ] scanner encontra os radios nos endereços esperados;
+- [ ] TFT exibe a tela inicial;
 - [ ] encoder confirma direção e exatamente um evento por detente;
 - [ ] log mostra clique curto entre 50 e 699 ms somente na soltura;
 - [ ] log mostra pressão longa a partir de 700 ms somente na soltura;
@@ -84,27 +82,27 @@ ligação final deve reproduzir os lados corretos do conversor e o GND comum.
 - [ ] GP2 do módulo está ligado ao GPIO4, sem pull-up externo adicional;
 - [ ] fora do monitoramento contínuo, sobremodulação gera um único log `[SI4713-INT]` e trava o alerta;
 - [ ] o contador não continua subindo enquanto o alerta aguarda reconhecimento;
-- [ ] a tela `Monitor` do LCD ativa a leitura somente enquanto está aberta;
-- [ ] o LCD mostra apenas nível em dBFS e `OK`/`CORTE`, sem ASQ ou contador;
+- [ ] a tela `Monitor` do TFT ativa a leitura somente enquanto está aberta;
+- [ ] o TFT mostra apenas nível em dBFS e `OK`/`CORTE`, sem ASQ ou contador;
 - [ ] botão web envia `INTACK` e rearma GP2 quando houver alerta travado;
 - [ ] transmissão permanece desligada nos padrões e após restaurar;
 - [ ] salvar TX ligado, cortar a alimentação e confirmar no novo boot o log
-      `[RF] Sequencia concluida em aplicacao` antes de o LCD mostrar `NO AR`;
+      `[RF] Sequencia concluida em aplicacao` antes de o TFT mostrar `NO AR`;
 - [ ] repetir o ciclo com TX salvo desligado e confirmar potência retornada zero;
-- [ ] com TX ligado, entrar no ajuste de frequência pelo LCD e confirmar que a
+- [ ] com TX ligado, entrar no ajuste de frequência pelo TFT e confirmar que a
       potência cai para zero antes do primeiro giro;
-- [ ] girar vários passos e confirmar cada frequência no LCD/API, enquanto o
+- [ ] girar vários passos e confirmar cada frequência no TFT/API, enquanto o
       receptor de teste permanece sem portadora; clicar e confirmar que o TX volta;
 - [ ] repetir o ajuste pela web, cortar a alimentação e confirmar no boot que a
       última frequência aplicada foi restaurada (não a frequência anterior);
-- [ ] nível de áudio e estado `OK`/`CORTE` são observados no LCD;
+- [ ] nível de áudio e estado `OK`/`CORTE` são observados no TFT;
 - [ ] reset e ciclo de energia recuperam o estado esperado;
 - [ ] perda e retorno de rede não interrompem o painel físico.
 
 ## Diagnóstico I2C no boot
 
-O firmware `0.1.2` registra o nível lógico de SDA/SCL, frequência, timeout,
-endereços encontrados e o resultado específico de `0x27`, `0x63` e `0x11`.
+O firmware registra o nível lógico de SDA/SCL, frequência, timeout,
+endereços encontrados e o resultado específico de `0x11` e `0x63`.
 Os códigos seguem o retorno do `Wire.endTransmission()` do Arduino ESP32:
 
 - `0`: endereço respondeu (ACK);
@@ -112,16 +110,15 @@ Os códigos seguem o retorno do `Wire.endTransmission()` do Arduino ESP32:
 - `5`: timeout ou barramento bloqueado.
 
 Se SDA ou SCL estiver em LOW antes do scan, o firmware cancela a varredura para
-não bloquear os controles. O diagnóstico digital não mede a tensão: com o LCD
-alimentado em 5 V, confirme fisicamente que o lado do ESP32/Si4713 permanece em
-3,3 V e que o BSS138 separa corretamente os dois domínios.
+não bloquear os controles. O diagnóstico digital não substitui a medição
+das tensões e a conferência dos pull-ups na montagem atual.
 
 ## Lacunas que dependem da bancada
 
 - identidade estável da porta USB;
 - tensões medidas e resistência efetiva dos pull-ups I2C;
 - comportamento do GPIO5 no reset do módulo conectado;
-- cadência estável de leitura ASQ com LCD, Wi-Fi e telemetria ativos;
+- cadência estável de leitura ASQ com TFT, Wi-Fi e telemetria ativos;
 - detector físico de portadora adiado; o GPIO4 está ocupado por GP2/INT;
 - validação RF, áudio e RDS no equipamento de medição/recepção.
 - frequência SPI padrão da biblioteca Adafruit estável no cabeamento real; se

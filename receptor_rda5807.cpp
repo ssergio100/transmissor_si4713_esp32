@@ -11,7 +11,7 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
   }
 
   // A biblioteca usa a instancia global Wire. Ela encontra aqui o mesmo
-  // barramento ja iniciado em setup() para LCD e Si4713.
+  // barramento ja iniciado em setup() para os radios.
   radio_.setup();
   const uint16_t identificador = radio_.getDeviceId();
   if ((identificador >> 8) != IDENTIFICADOR_CHIP) {

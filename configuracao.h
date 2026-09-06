@@ -4,7 +4,7 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.25-rds-tx";
+constexpr char VERSAO_FIRMWARE[] = "0.1.26-sem-lcd";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
 
@@ -46,9 +46,6 @@ constexpr int PIN_RESET_SI4713 = 5;
 // sinal tambem participa da selecao do modo de barramento do CI.
 constexpr int PIN_INTERRUPCAO_SI4713 = 4;
 
-constexpr uint8_t LCD_ENDERECO = 0x27;
-constexpr uint8_t LCD_COLUNAS = 20;
-constexpr uint8_t LCD_LINHAS = 4;
 
 constexpr uint32_t TEMPO_PRESSIONAMENTO_LONGO_MS = 700;
 constexpr uint32_t INTERVALO_ATUALIZACAO_DISPLAY_MS = 250;
