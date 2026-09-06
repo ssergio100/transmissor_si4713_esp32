@@ -8,16 +8,24 @@ namespace TemaTft {
 // ======================================================
 // Alterar um codigo muda todos os lugares que usam aquele nome.
 // Para mudar apenas um bloco, troque o nome da cor na secao 3.
-constexpr uint16_t PETROLEO_ESCURO = 0x0861;
-constexpr uint16_t AZUL_ARDOSIA = 0x10C3;
-constexpr uint16_t BRANCO = 0xEF7D;
-constexpr uint16_t CINZA = 0x9CF3;
-constexpr uint16_t LARANJA = 0xFD23;
-constexpr uint16_t VERDE = 0x4EAF;
-constexpr uint16_t AMARELO = 0xFE68;
-constexpr uint16_t VERMELHO = 0xFACA;
-constexpr uint16_t AZUL = 0x5DFF;
-constexpr uint16_t ROSA = 0xF953;  // RGB(255, 40, 160)
+
+constexpr uint16_t RGB(uint8_t r, uint8_t g, uint8_t b) {
+    return ((r & 0xF8) << 8) |
+           ((g & 0xFC) << 3) |
+           (b >> 3);
+}
+
+constexpr uint16_t PRETO            = RGB(0, 0, 0);
+constexpr uint16_t PETROLEO_ESCURO  = RGB(8, 12, 8);
+constexpr uint16_t AZUL_ARDOSIA     = RGB(16, 24, 24);
+constexpr uint16_t BRANCO           = RGB(239, 239, 239);
+constexpr uint16_t CINZA            = RGB(156, 158, 156);
+constexpr uint16_t LARANJA          = RGB(255, 166, 24);
+constexpr uint16_t VERDE            = RGB(74, 215, 123);
+constexpr uint16_t AMARELO          = RGB(255, 207, 66);
+constexpr uint16_t VERMELHO         = RGB(255, 89, 82);
+constexpr uint16_t AZUL             = RGB(90, 190, 255);
+constexpr uint16_t ROSA             = RGB(255, 40, 160);
 
 struct EstiloBloco {
   uint16_t fundo;
@@ -47,8 +55,8 @@ constexpr uint16_t ALERTA_RODAPE = AMARELO;
 //
 //                        Fundo          Borda     Titulo  Valor
 constexpr EstiloBloco
-    TX_NO_AR          = { ROSA         , VERDE   , BRANCO, BRANCO   },
-    TX_DESLIGADO      = { AZUL_ARDOSIA , CINZA   , CINZA , CINZA    },
+    TX_NO_AR          = { ROSA         , ROSA   , BRANCO, BRANCO   },
+    TX_DESLIGADO      = { PRETO , CINZA   , CINZA , CINZA    },
     TX_PAUSADO        = { AZUL_ARDOSIA , CINZA   , CINZA , CINZA    },
     TX_FALHA          = { AZUL_ARDOSIA , VERMELHO, CINZA , VERMELHO },
     RDS_LIGADO        = { AZUL_ARDOSIA , AZUL    , CINZA , AZUL     },

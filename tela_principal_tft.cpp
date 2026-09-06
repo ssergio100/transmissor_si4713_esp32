@@ -1,4 +1,6 @@
 #include "tela_principal_tft.h"
+#include "no_ar_suave.h"
+#include "no_ar_suave_imagem.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -21,6 +23,9 @@ constexpr int16_t PRE_DESVIO_DISTANCIA_DO_TOPO = 21;
 // 0 = posicao atual; +1 = desce 1 pixel; -1 = sobe 1 pixel.
 // Afeta NO AR, TX OFF, TX PAUSADO e FALHA TX; nao move a antena.
 constexpr int16_t TRANSMISSAO_AJUSTE_VERTICAL = 0;
+// Teste visual: false volta ao texto original, sem trocar o driver.
+// Tamanho da imagem: ajuste TAMANHO em scripts/gerar_no_ar.py e execute o script.
+constexpr bool NO_AR_SUAVIZADO = true;
 
 // ======================================================
 // 2. LAYOUT: POSICAO, DIMENSOES, TITULO E FONTE DOS BLOCOS
@@ -269,6 +274,17 @@ void TelaPrincipalTft::desenharBloco(Bloco bloco, const char* valor,
     desenharIconeTransmissao(area, strcmp(valor, "NO AR") == 0, estilo);
     const int inicioTexto = area.x + 48;
     const int larguraDisponivel = area.largura - 54;
+    if (NO_AR_SUAVIZADO && strcmp(valor, "NO AR") == 0
+        && NoArSuave::LARGURA <= larguraDisponivel
+        && NoArSuave::ALTURA <= area.altura - 4) {
+      const int x = inicioTexto + (larguraDisponivel - NoArSuave::LARGURA) / 2;
+      const int y = area.y + (area.altura - NoArSuave::ALTURA) / 2
+          + TRANSMISSAO_AJUSTE_VERTICAL;
+      NoArSuave::desenhar(*tft_, x, y, estilo.valor, estilo.fundo);
+      snprintf(cache.texto, sizeof(cache.texto), "%s", valor);
+      cache.estilo = estilo;
+      return;
+    }
     uint8_t tamanho = area.tamanhoTexto;
     int16_t deslocamentoX, deslocamentoY;
     uint16_t larguraTexto, alturaTexto;
