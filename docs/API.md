@@ -308,3 +308,10 @@ Erros usam um código HTTP coerente e o mesmo formato:
 
 Respostas esperadas incluem `400` para JSON inválido, `404` para rota ausente,
 `409` quando o rádio está indisponível/ocupado e `422` para valores inválidos.
+
+### Unidade legada da frequência
+
+Os campos `frequencyKhz` e os correspondentes `frequenciaKhz` no firmware
+armazenam unidades de **10 kHz**, apesar do nome. Exemplo: `9950` representa
+99,50 MHz (99500 kHz). A exibição em MHz divide por 100; não por 1000.
+Os nomes e valores foram preservados para manter compatibilidade com os clientes.

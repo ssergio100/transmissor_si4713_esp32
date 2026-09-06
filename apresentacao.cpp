@@ -145,6 +145,8 @@ EstadoPainel Apresentacao::gerar(
   estado.rds.habilitado = configuracao.rdsHabilitado;
   memcpy(estado.rds.ps, configuracao.rdsPs, sizeof(estado.rds.ps));
   memcpy(estado.rds.texto, configuracao.rdsText, sizeof(estado.rds.texto));
+  strncpy(estado.rds.textoAtual, transmissor.radioTextAtual(),
+          sizeof(estado.rds.textoAtual) - 1);
 
   estado.receptor.frequenciaKhz = receptor.frequenciaKhz;
   estado.receptor.rssi = receptor.rssi;

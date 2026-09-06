@@ -276,3 +276,11 @@ String Transmissor::aplicarModelo(
   resultado.replace("{hora}", hora);
   return resultado;
 }
+
+const char* Transmissor::radioTextAtual() const {
+  if (configuracao_.fonteRadioText == FonteRadioText::TEXTO_MANUAL
+      || configuracao_.fonteRadioText == FonteRadioText::FRASE) {
+    return configuracao_.rdsText;
+  }
+  return ultimoRadioTextAplicado_;
+}

@@ -10,10 +10,10 @@ namespace {
 
 constexpr uint8_t ASQ_SOBREMODULACAO = 0x04;
 constexpr uint8_t QUANTIDADE_LINHAS = 5;
-constexpr int16_t ALTURA_CABECALHO = 42;
-constexpr int16_t Y_PRIMEIRA_LINHA = 50;
-constexpr int16_t ALTURA_LINHA = 43;
-constexpr int16_t Y_RODAPE = 278;
+constexpr int16_t ALTURA_CABECALHO = 36;
+constexpr int16_t Y_PRIMEIRA_LINHA = 40;
+constexpr int16_t ALTURA_LINHA = 33;
+constexpr int16_t Y_RODAPE = 211;
 
 constexpr uint16_t COR_FUNDO = 0x0861;
 constexpr uint16_t COR_CABECALHO = 0x10C3;
@@ -189,61 +189,12 @@ void DisplayTft::prepararTela(
 }
 
 void DisplayTft::mostrarPrincipal(const EstadoPainel& estado) {
-  prepararTela("TRANSMISSOR FM", TelaPainel::PRINCIPAL);
-  char texto[36];
-
-  snprintf(
-      texto,
-      sizeof(texto),
-      "%u.%02u MHz",
-      estado.rf.frequenciaKhz / 100,
-      estado.rf.frequenciaKhz % 100
-  );
-  escreverLinha(0, texto, COR_DESTAQUE, 3);
-
-  snprintf(
-      texto,
-      sizeof(texto),
-      "%s   %u dBuV",
-      estado.rf.transmitindo ? "NO AR" : "TX OFF",
-      estado.rf.potenciaDbuv
-  );
-  escreverLinha(
-      1,
-      texto,
-      estado.rf.transmitindo ? COR_OK : COR_ERRO,
-      2
-  );
-
-  snprintf(
-      texto,
-      sizeof(texto),
-      "Audio:%s  RDS:%s",
-      estado.audio.estereo ? "ST" : "MO",
-      estado.rds.habilitado ? "ON" : "OFF"
-  );
-  escreverLinha(2, texto, COR_TEXTO, 2);
-
-  if (estado.receptor.disponivel) {
-    snprintf(
-        texto,
-        sizeof(texto),
-        "RX %u.%02u MHz",
-        estado.receptor.frequenciaKhz / 100,
-        estado.receptor.frequenciaKhz % 100
-    );
-    escreverLinha(3, texto, COR_SUAVE, 2);
-    if (estado.receptor.leituraRssiValida) {
-      snprintf(texto, sizeof(texto), "RSSI %u", estado.receptor.rssi);
-    } else {
-      snprintf(texto, sizeof(texto), "RSSI ---");
-    }
-    escreverLinha(4, texto, COR_AVISO, 2);
-  } else {
-    escreverLinha(3, "RDA indisponivel", COR_ERRO, 2);
-    escreverLinha(4, "RSSI ---", COR_SUAVE, 2);
-  }
-  escreverRodape("Clique: menu", COR_SUAVE);
+  const bool entrada = !telaValida_ || telaRenderizada_ != TelaPainel::PRINCIPAL
+      || recuperacaoRenderizada_;
+  principal_.renderizar(tft_, estado, entrada);
+  telaValida_ = true;
+  telaRenderizada_ = TelaPainel::PRINCIPAL;
+  recuperacaoRenderizada_ = false;
 }
 
 void DisplayTft::mostrarRaiz(const EstadoPainel& estado) {
@@ -613,7 +564,7 @@ void DisplayTft::escreverRodape(const char* texto, uint16_t cor) {
   tft_.getTextBounds(texto, 0, 0, &x1, &y1, &largura, &altura);
   int16_t x = (tft_.width() - static_cast<int16_t>(largura)) / 2;
   if (x < 5) x = 5;
-  tft_.setCursor(x, Y_RODAPE + 17);
+  tft_.setCursor(x, Y_RODAPE + 11);
   tft_.print(texto);
 
   snprintf(cache.texto, sizeof(cache.texto), "%s", texto);

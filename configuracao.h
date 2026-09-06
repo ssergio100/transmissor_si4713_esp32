@@ -4,7 +4,7 @@
 
 namespace Configuracao {
 
-constexpr char VERSAO_FIRMWARE[] = "0.1.26-sem-lcd";
+constexpr char VERSAO_FIRMWARE[] = "0.1.27-tft-paisagem";
 constexpr char NOME_HOST[] = "transmissor-si4713";
 constexpr char NOME_PORTAL_WIFI[] = "TRANSMISSOR-SI4713";
 
@@ -26,7 +26,7 @@ constexpr uint16_t TFT_LARGURA = 240;
 constexpr uint16_t TFT_ALTURA = 320;
 // Orientacao confirmada na bancada para o conector ficar na posicao de montagem
 // escolhida: retrato girado em 180 graus em relacao ao padrao do controlador.
-constexpr uint8_t TFT_ROTACAO = 2;
+constexpr uint8_t TFT_ROTACAO = 1;
 
 constexpr int PIN_ENCODER_DT = 16;
 constexpr int PIN_ENCODER_CLK = 15;

@@ -34,6 +34,7 @@ class Transmissor {
   uint8_t melhorNivelRuido() const;
   uint8_t enderecoRadio() const;
   bool horaValida() const;
+  const char* radioTextAtual() const;
 
  private:
   void atualizarRadioTextDinamico(bool forcar = false);

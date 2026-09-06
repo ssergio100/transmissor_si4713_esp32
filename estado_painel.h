@@ -66,6 +66,7 @@ struct NavegacaoPainel {
 };
 
 struct RfPainel {
+  // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
   uint16_t frequenciaKhz = 0;
   uint16_t frequenciaEfetivaKhz = 0;
   uint8_t potenciaDbuv = 0;
@@ -90,9 +91,11 @@ struct RdsPainel {
   bool habilitado = false;
   char ps[9] = {};
   char texto[33] = {};
+  char textoAtual[33] = {};  // Frase manual ou ultimo RadioText dinamico aplicado.
 };
 
 struct ReceptorPainel {
+  // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
   uint16_t frequenciaKhz = 0;
   uint8_t rssi = 0;
   bool disponivel = false;

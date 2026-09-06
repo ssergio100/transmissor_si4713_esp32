@@ -21,6 +21,7 @@ struct ConfiguracaoTransmissor {
 
   uint32_t magic = MAGIC;
   uint8_t versao = VERSAO;
+  // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
   uint16_t frequenciaKhz = 9950;
   uint16_t rdsPi = 0x4713;
   uint8_t potenciaDbuv = 100;
@@ -48,6 +49,7 @@ struct ConfiguracaoTransmissor {
 };
 
 struct MedicaoCanal {
+  // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
   uint16_t frequenciaKhz = 0;
   uint8_t nivelRuido = 0;
 };
