@@ -48,7 +48,7 @@ void DisplayTft::mostrarInicializacao() {
 }
 
 void DisplayTft::renderizar(const EstadoPainel& estado) {
-  if (!pronto_) return;
+  if (!pronto_ || emRepouso_) return;
   const bool abrirJanela = estado.navegacao.tela != TelaPainel::PRINCIPAL
       || estado.navegacao.erro[0];
   const bool redesenharPainel = !painelValido_ || (janelaAberta_ && !abrirJanela);
@@ -64,3 +64,24 @@ void DisplayTft::renderizar(const EstadoPainel& estado) {
   painelValido_ = true;
   janelaAberta_ = abrirJanela;
 }
+
+void DisplayTft::entrarRepouso() {
+  if (!pronto_ || emRepouso_) return;
+  // Display Off insere uma tela vazia; Sleep In para a varredura do painel.
+  tft_.enableDisplay(false);
+  tft_.enableSleep(true);
+  emRepouso_ = true;
+}
+
+void DisplayTft::sairRepouso() {
+  if (!pronto_ || !emRepouso_) return;
+  tft_.enableSleep(false);
+  // O ST7789 exige aguardar a estabilizacao depois de Sleep Out.
+  delay(120);
+  tft_.enableDisplay(true);
+  emRepouso_ = false;
+  painelValido_ = false;
+  janelaAberta_ = false;
+}
+
+bool DisplayTft::emRepouso() const { return emRepouso_; }

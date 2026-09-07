@@ -1,12 +1,12 @@
 #include "tela_principal_tft.h"
 
-#include "no_ar_suave_imagem.h"
-#include "tx_off_suave_imagem.h"
-#include "on_suave_imagem.h"
-#include "off_suave_imagem.h"
-#include "stereo_suave_imagem.h"
-#include "mono_suave_imagem.h"
-#include "mute_suave_imagem.h"
+#include "assets/imagens_tft/no_ar_suave_imagem.h"
+#include "assets/imagens_tft/tx_off_suave_imagem.h"
+#include "assets/imagens_tft/on_suave_imagem.h"
+#include "assets/imagens_tft/off_suave_imagem.h"
+#include "assets/imagens_tft/stereo_suave_imagem.h"
+#include "assets/imagens_tft/mono_suave_imagem.h"
+#include "assets/imagens_tft/mute_suave_imagem.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -35,7 +35,7 @@ constexpr int16_t POTENCIA_DISTANCIA_DO_TOPO = 21;
 constexpr int16_t RSSI_DISTANCIA_DO_TOPO = 21;
 constexpr int16_t AUDIO_DISTANCIA_DO_TOPO = 23;
 constexpr int16_t MODO_DISTANCIA_DO_TOPO = 23;
-constexpr int16_t PRE_DESVIO_DISTANCIA_DO_TOPO = 21;
+constexpr int16_t PRE_DESVIO_DISTANCIA_DO_TOPO = 23;
 
 
 // Excecao da transmissao:
@@ -866,15 +866,11 @@ TelaPrincipalTft::localizarArea(
 //
 // 1. Gere:
 //
-//    ./gerar_texto_suave.py \
-//        "OFF" \
-//        "90,190,255" \
-//        "8,12,8" \
-//        off_suave_imagem
+//    ./gerar_texto_suave.py "OFF" "90,190,255" "8,12,8" off_suave_imagem
 //
 // 2. No topo:
 //
-//    #include "off_suave_imagem.h"
+//    #include "assets/imagens_tft/off_suave_imagem.h"
 //
 // 3. Acrescente UMA entrada em VALORES_SUAVES.
 //

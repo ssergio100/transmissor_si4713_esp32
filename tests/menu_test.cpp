@@ -55,18 +55,18 @@ int main() {
   menu.girar(1);
   assert(menu.navegacao().item == RAIZ_RF);
   menu.selecionar(c);
-  assert(menu.navegacao().item == RF_FREQUENCIA);
+  assert(menu.navegacao().item == RF_TRANSMISSAO);
   menu.girar(-1);
   assert(menu.navegacao().item == RF_VOLTAR);
   menu.girar(1);
-  assert(menu.navegacao().item == RF_FREQUENCIA);
+  assert(menu.navegacao().item == RF_TRANSMISSAO);
 
   // A frequencia so muda no clique. Pressao longa descarta o valor provisório.
   abrir(menu, c, RAIZ_RF, RF_FREQUENCIA);
   const uint16_t original = c.frequenciaKhz;
   assert(menu.girar(3) == Menu::NENHUMA);
   assert(c.frequenciaKhz == original);
-  assert(menu.navegacao().valorEditado == original + 3 * Configuracao::PASSO_FREQUENCIA_KHZ);
+  assert(menu.navegacao().valorEditado == original + 3 * c.passoFrequenciaKhz);
   assert(menu.sairParaPrincipal() == Menu::NENHUMA);
   assert(c.frequenciaKhz == original && menu.tela() == Tela::PRINCIPAL);
 
@@ -74,7 +74,7 @@ int main() {
   menu.girar(1);
   c.potenciaDbuv = 110; // Simula uma alteracao web durante o ajuste local.
   assert(menu.selecionar(c) == Menu::APLICAR_FREQUENCIA);
-  assert(c.frequenciaKhz == original + Configuracao::PASSO_FREQUENCIA_KHZ);
+  assert(c.frequenciaKhz == original + c.passoFrequenciaKhz);
   assert(c.potenciaDbuv == 110);
   menu.concluirAplicacao(true);
   assert(!menu.navegacao().editando && menu.navegacao().item == RF_FREQUENCIA);
@@ -84,7 +84,7 @@ int main() {
   // Limites numericos nao circulam do maximo para o minimo.
   abrir(menu, c, RAIZ_RF, RF_FREQUENCIA);
   for (int i = 0; i < 4; i++) menu.girar(100);
-  assert(menu.navegacao().valorEditado == Configuracao::FREQUENCIA_MAXIMA_KHZ);
+  assert(menu.navegacao().valorEditado == 10790);
   for (int i = 0; i < 4; i++) menu.girar(-100);
   assert(menu.navegacao().valorEditado == Configuracao::FREQUENCIA_MINIMA_KHZ);
 
@@ -107,8 +107,24 @@ int main() {
   clicarBinario(menu, c); assert(c.transmissaoHabilitada);
   clicarBinario(menu, c); assert(!c.transmissaoHabilitada);
   posicionarBinario(menu, c, RAIZ_AUDIO, AUDIO_ESTEREO);
-  clicarBinario(menu, c); assert(!c.estereo);
-  clicarBinario(menu, c); assert(c.estereo);
+  const uint8_t modosEsperados[] = {1, 2,
+      ConfiguracaoTransmissor::APENAS_L, ConfiguracaoTransmissor::APENAS_R, 0, 3, 7};
+  const ConfiguracaoTransmissor antesMultiplex = c;
+  for (uint8_t esperado : modosEsperados) {
+    clicarBinario(menu, c);
+    assert(c.modoAudio() == esperado);
+    const bool isolado = esperado == ConfiguracaoTransmissor::APENAS_L
+        || esperado == ConfiguracaoTransmissor::APENAS_R;
+    assert(c.componentesMultiplex() == (isolado ? 3 : esperado));
+    assert(c.estereo == ((c.componentesMultiplex() & 3) == 3));
+    assert(c.rdsHabilitado == (!isolado && (esperado & 4) != 0));
+    assert(c.valoresValidos());
+    assert(c.frequenciaKhz == antesMultiplex.frequenciaKhz);
+    assert(c.potenciaDbuv == antesMultiplex.potenciaDbuv);
+    assert(c.preEnfaseUs == antesMultiplex.preEnfaseUs);
+    assert(c.desvioAudioKhz == antesMultiplex.desvioAudioKhz);
+    assert(c.audioMudo == antesMultiplex.audioMudo);
+  }
   posicionarBinario(menu, c, RAIZ_AUDIO, AUDIO_PRE_ENFASE);
   clicarBinario(menu, c); assert(c.preEnfaseUs == 75);
   clicarBinario(menu, c); assert(c.preEnfaseUs == 50);
@@ -205,5 +221,53 @@ int main() {
   assert(menu.selecionar(c) == Menu::NENHUMA && menu.tela() == Tela::RAIZ);
   escolher(menu, RAIZ_VOLTAR); menu.selecionar(c);
   assert(menu.tela() == Tela::PRINCIPAL);
+
+  // SISTEMA permite escolher os tempos definidos na configuracao do projeto.
+  menu.selecionar(c);
+  escolher(menu, RAIZ_SISTEMA);
+  menu.selecionar(c);
+  assert(menu.tela() == Tela::SISTEMA);
+  assert(menu.navegacao().item == SISTEMA_REPOUSO);
+  menu.selecionar(c);
+  assert(menu.navegacao().editando);
+  assert(menu.navegacao().valorEditado == 300);
+  menu.girar(-3);
+  assert(menu.navegacao().valorEditado == 13);
+  menu.girar(1);
+  assert(menu.navegacao().valorEditado == 30);
+  assert(menu.selecionar(c) == Menu::SALVAR_REPOUSO_DISPLAY);
+  assert(c.repousoDisplaySegundos == 30);
+  menu.concluirAplicacao(true);
+  assert(!menu.navegacao().editando);
+  menu.selecionar(c);
+  menu.girar(-1);
+  assert(menu.navegacao().valorEditado == 13);
+  menu.sairParaPrincipal();
+  assert(c.repousoDisplaySegundos == 30);
+
+  // O clique alterna o passo local entre 200 kHz (Brasil) e 100 kHz.
+  posicionarBinario(menu, c, RAIZ_SISTEMA, SISTEMA_PASSO_FREQUENCIA);
+  assert(c.passoFrequenciaKhz == 20);
+  assert(menu.selecionar(c) == Menu::SALVAR_PASSO_FREQUENCIA);
+  assert(c.passoFrequenciaKhz == 10);
+  menu.concluirAplicacao(true);
+  assert(menu.selecionar(c) == Menu::SALVAR_PASSO_FREQUENCIA);
+  assert(c.passoFrequenciaKhz == 20);
+  menu.concluirAplicacao(true);
+
+  // Volume do receptor interno usa a escala completa oferecida pelo RDA5807.
+  abrir(menu, c, RAIZ_SISTEMA, SISTEMA_VOLUME_MONITOR);
+  assert(menu.navegacao().valorEditado == Configuracao::VOLUME_MONITOR_PADRAO);
+  menu.girar(100);
+  assert(menu.navegacao().valorEditado == Configuracao::VOLUME_MONITOR_MAXIMO);
+  assert(menu.selecionar(c) == Menu::SALVAR_VOLUME_MONITOR);
+  assert(c.volumeMonitor == Configuracao::VOLUME_MONITOR_MAXIMO);
+  menu.concluirAplicacao(true);
+
+  // Uma frequencia antiga fora da grade brasileira entra nela no primeiro giro.
+  c.frequenciaKhz = 9960;
+  abrir(menu, c, RAIZ_RF, RF_FREQUENCIA);
+  menu.girar(1);
+  assert(menu.navegacao().valorEditado == 9970);
   puts("Menus: confirmacao, cancelamento, limites, textos, monitor e busca passaram.");
 }

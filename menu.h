@@ -18,7 +18,9 @@ class Menu {
   using Tela = TelaPainel;
   enum Acao : uint8_t {
     NENHUMA, APLICAR_CONFIGURACAO, APLICAR_FREQUENCIA,
-    INICIAR_VARREDURA, CANCELAR_VARREDURA, USAR_MELHOR_FREQUENCIA
+    INICIAR_VARREDURA, CANCELAR_VARREDURA, USAR_MELHOR_FREQUENCIA,
+    SALVAR_REPOUSO_DISPLAY, SALVAR_PASSO_FREQUENCIA,
+    SALVAR_VOLUME_MONITOR
   };
 
   // configuracao: estado atual; recebe SOMENTE o campo confirmado pelo clique.
@@ -50,6 +52,7 @@ class Menu {
   bool editando_ = false;
   bool editandoCaractere_ = false;
   int32_t valorEditado_ = 0;
+  uint8_t passoFrequenciaEdicao_ = Configuracao::PASSO_FREQUENCIA_PADRAO_KHZ;
   char textoEditado_[33] = {};
   uint8_t cursorTexto_ = 0;
   uint8_t comprimentoTexto_ = 0;

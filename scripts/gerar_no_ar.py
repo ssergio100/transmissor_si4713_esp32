@@ -40,8 +40,8 @@ ESCALA = 4
 LARGURA_MAXIMA = 144
 ALTURA_MAXIMA = 46
 
-ARQUIVO_H = RAIZ / "no_ar_suave_imagem.h"
-ARQUIVO_PREVIA = RAIZ / "assets/no_ar_previa.png"
+ARQUIVO_H = RAIZ / "assets/imagens_tft/no_ar_suave_imagem.h"
+ARQUIVO_PREVIA = RAIZ / "assets/previews/no_ar_previa.png"
 ARQUIVO_TEMA = RAIZ / "tema_tft.h"
 
 

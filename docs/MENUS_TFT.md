@@ -2,7 +2,7 @@
 
 O encoder gira para selecionar ou ajustar. O clique abre um item; no ajuste,
 confirma e retorna ao submenu. Nas opções binárias (transmissão, mono/estéreo,
-pré-ênfase, entrada de áudio e RDS), o clique alterna e aplica diretamente
+pré-ênfase, entrada de áudio, RDS e passo de frequência), o clique alterna e aplica diretamente
 na lista, mantendo o item selecionado. A pressão longa descarta a edição em andamento
 e retorna à tela principal. Valores já confirmados permanecem aplicados.
 As listas são circulares: depois do último item vem o primeiro; antes do
@@ -39,6 +39,8 @@ mova a linha inteira dentro da mesma lista. A navegação e o desenho leem as
 mesmas listas; não é necessário atualizar uma contagem manual.
 
 As listas principais são `menuInicial`, `menuRf`, `menuAudio` e `menuRds`.
+A lista `menuSistema` contém o repouso do display, o passo de frequência e o
+volume do receptor usado como monitor.
 A lista `menuResultado` contém as ações depois de encontrar um canal.
 Mantenha `VOLTAR` como primeira opção do resultado: sem resultado válido,
 somente essa opção fica disponível. Não mova itens entre categorias sem
@@ -90,9 +92,11 @@ a janela apresenta a mensagem; um clique a dispensa, conservando o editor
 para nova tentativa. A pressão longa fecha tudo.
 
 A persistência existente foi mantida: a frequência é gravada pelo transmissor
-quando confirmada. Os outros ajustes locais são aplicados em funcionamento,
-sem acrescentar gravação automática nesta mudança. O menu SISTEMA foi removido;
-essas funções continuam disponíveis nas APIs existentes quando suportadas.
+quando confirmada. Os outros ajustes locais são aplicados em funcionamento.
+O tempo de repouso do display usa uma chave própria na NVS e é gravado ao ser
+confirmado, sem gravar junto os demais ajustes que ainda não foram salvos.
+O passo de frequência usa outra chave própria e também é gravado imediatamente.
+O volume do monitor segue o mesmo modelo de persistência.
 
 ## Texto RDS e código PI
 
@@ -114,6 +118,33 @@ CANAL LIVRE solicita a busca imediatamente. Durante a busca, o giro não faz
 nada, o clique cancela e retorna à raiz, e a pressão longa cancela e retorna
 à tela principal. Ao concluir, aparecem a frequência, VOLTAR e APLICAR.
 O resultado de uma busca anterior não é oferecido se a nova tentativa falhar.
+
+## Repouso do display
+
+O menu SISTEMA oferece `NUNCA`, `13 S`, `30 S`, `1 MIN`, `5 MIN`, `15 MIN` e
+`30 MIN`. Esses tempos ficam na lista `TEMPOS_REPOUSO_DISPLAY_SEGUNDOS`, em
+`configuracao.h`; o padrão é 5 minutos. A escolha é gravada imediatamente.
+
+Após o período sem atividade do encoder, o firmware envia Display Off e
+Sleep In ao ST7789. O primeiro giro, clique ou pressionamento longo acorda o
+display e é consumido: ele não navega nem altera uma opção. Depois de Sleep
+Out, o firmware aguarda 120 ms e redesenha a tela atual.
+
+## Passo de frequência
+
+O item `PASSO FREQUENCIA`, no menu SISTEMA, alterna diretamente entre
+`0.1 MHz` e `0.2 MHz BR`. O padrão brasileiro é 0,2 MHz: a canalização começa
+em 76,1 MHz e segue por 76,3; 76,5; 76,7 MHz, mantendo o último décimo ímpar.
+Essa escolha afeta o ajuste local pelo encoder; a API continua aceitando a
+resolução mínima de 0,1 MHz oferecida pelo rádio.
+
+Se uma frequência antiga estiver fora da grade selecionada, o primeiro giro
+leva ao próximo canal válido na direção escolhida. Com o passo brasileiro, o
+maior centro de canal abaixo do limite superior é 107,9 MHz.
+
+O conector atualmente descrito no projeto não oferece um pino separado para
+a iluminação. Por isso, o repouso para a varredura do painel, mas não controla
+eletricamente o LED de fundo.
 
 ## Desenho e memória
 
@@ -168,3 +199,39 @@ Na placa, conferir giro/clique, confirmação e saída longa em cada ajuste,
 busca concluída/cancelada, falha do rádio, legibilidade, resposta do encoder e
 abertura/fechamento com a rede ativa. Os testes de computador não comprovam
 resposta elétrica do encoder, tempo de SPI ou operação RF real.
+
+### Diagnostico do multiplex em AUDIO > MODO
+
+Cada clique avanca e aplica imediatamente: MONO (`0x0000`), ESTEREO
+(`0x0003`), ESTEREO + RDS (`0x0007`), SOMENTE PILOTO (`0x0001`),
+SOMENTE L-R (`0x0002`), APENAS L e APENAS R, retornando a MONO. Os valores sao escritos em
+`TX_COMPONENT_ENABLE` (`0x2100`) e conferidos por leitura do chip.
+A selecao sincroniza o estado de RDS com o bit correspondente; nao altera
+volume, ganho, pre-enfase, desvio de audio, frequencia ou potencia.
+
+Use "Salvar no dispositivo" na interface web para persistir a configuracao,
+como antes para Mono/Estereo. Preferencias antigas preservam a combinacao anterior de
+Mono/Estereo e RDS. Alterar TRANSMISSAO RDS separadamente volta a combinacao
+legada de Mono/Estereo e RDS; para diagnostico isolado, selecione novamente
+um dos modos em AUDIO > MODO.
+
+APENAS L e APENAS R mantem `TX_COMPONENT_ENABLE = 0x0003` e usam somente
+`TX_LINE_INPUT_MUTE` (`0x2105`) para isolar as entradas: `0x0001` silencia R
+(APENAS L), `0x0002` silencia L (APENAS R). Ao selecionar esses modos, o mute
+global e liberado para permitir ouvir o canal escolhido; ao voltar a qualquer
+modo normal, ambas as entradas ficam ativas (`0x0000`). A preferencia e os dados
+RDS sao preservados ao entrar no teste L/R, mas o bit RDS nao e transmitido
+nesses modos, conforme a mascara obrigatoria `0x0003`. O Serial informa o nome
+do modo e os valores das duas propriedades.
+
+Referencia dos bits: [AN332 Rev. 1.2](https://manuals.plus/m/8efcb83e9cd60b226feb5233ccd6a6a90a6b69dd4a16f946a1624049018d338d),
+propriedade TX_LINE_INPUT_MUTE, pagina 39 (LIMUTE = bit 1; RIMUTE = bit 0).
+
+Antes das escritas de cada aplicacao de configuracao, o Serial registra leituras
+reais via GET_PROPERTY de `0x2100 TX_COMPONENT_ENABLE`, `0x2102
+TX_PILOT_DEVIATION`, `0x2107 TX_PILOT_FREQUENCY` e `0x2105 TX_LINE_INPUT_MUTE`.
+Mostra hexadecimal e decimal, acrescentando Hz para desvio (unidade de 10 Hz)
+e frequencia do piloto (unidade de 1 Hz). Ao entrar em APENAS L/R, le novamente
+o mute depois da aplicacao. Leituras malsucedidas aparecem como FALHA, sem
+substituicao por valores esperados. Esse diagnostico nao escreve propriedades
+nem corrige valores do piloto.

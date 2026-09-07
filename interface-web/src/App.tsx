@@ -351,6 +351,9 @@ export default function App() {
   const freqMinMhz = device.system.frequencyMinKhz / 100
   const freqMaxMhz = device.system.frequencyMaxKhz / 100
   const freqStepMhz = device.system.frequencyStepKhz / 100
+  // Mantem compatibilidade durante a atualizacao de um firmware antigo.
+  const powerMinDbuv = device.system.powerMinDbuv ?? 88
+  const powerMaxDbuv = device.system.powerMaxDbuv ?? 118
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     usuarioEditandoRef.current = true
     setDraft((current) => current ? { ...current, [key]: value } : current)
@@ -419,7 +422,7 @@ export default function App() {
             <div className="rf-fields">
               <NumericField label="Frequência" value={draft.frequencyKhz / 100} min={freqMinMhz} max={freqMaxMhz} step={freqStepMhz} suffix="MHz" onFocus={() => ajustarFrequencia(draft.frequencyKhz / 100)} onChange={ajustarFrequencia} />
               <span className={cn('applied-value', draft.frequencyKhz !== device.applied.frequencyKhz && 'pending')}>{mhz(device.applied.frequencyKhz)} MHz</span>
-              <NumericField label="Potência" value={draft.powerDbuv} min={88} max={115} suffix="dBµV" onChange={(value) => set('powerDbuv', value)} />
+              <NumericField label="Potência" value={draft.powerDbuv} min={powerMinDbuv} max={powerMaxDbuv} suffix="dBµV" onChange={(value) => set('powerDbuv', value)} />
               <span className={cn('applied-value', draft.powerDbuv !== device.applied.powerDbuv && 'pending')}>{device.applied.powerDbuv} dBµV</span>
               <AntennaCapField value={draft.antennaCap} effective={device.applied.antennaCap} onChange={(value) => set('antennaCap', value)} />
               <span className={cn('applied-value', antennaPending && 'pending')}>

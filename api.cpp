@@ -414,7 +414,11 @@ bool Api::preencherConfiguracao(
   if (documento["antennaCap"].is<uint8_t>()) {
     configuracao.capacitanciaAntena = documento["antennaCap"];
   }
-  if (documento["stereo"].is<bool>()) configuracao.estereo = documento["stereo"];
+  if (documento["stereo"].is<bool>()
+      && documento["stereo"].as<bool>() != configuracao.estereo) {
+    configuracao.estereo = documento["stereo"];
+    configuracao.modoMultiplex = 0xFF;
+  }
   if (documento["preemphasisUs"].is<uint8_t>()) {
     configuracao.preEnfaseUs = documento["preemphasisUs"];
   }
@@ -423,6 +427,8 @@ bool Api::preencherConfiguracao(
   }
   if (documento["muted"].is<bool>()) configuracao.audioMudo = documento["muted"];
   if (documento["rdsEnabled"].is<bool>()) {
+    if (documento["rdsEnabled"].as<bool>() != configuracao.rdsHabilitado)
+      configuracao.modoMultiplex = 0xFF;
     configuracao.rdsHabilitado = documento["rdsEnabled"];
   }
   if (documento["rdsPi"].is<uint16_t>()) configuracao.rdsPi = documento["rdsPi"];
@@ -468,6 +474,9 @@ String Api::serializarEstado(bool comTipo) const {
   desejado["antennaCap"] = configuracao.capacitanciaAntena;
   desejado["txEnabled"] = configuracao.transmissaoHabilitada;
   desejado["stereo"] = configuracao.estereo;
+  desejado["multiplexComponents"] = configuracao.componentesMultiplex();
+  desejado["audioMode"] = configuracao.modoAudio();
+  desejado["lineInputMute"] = configuracao.muteEntradas();
   desejado["preemphasisUs"] = configuracao.preEnfaseUs;
   desejado["audioDeviationKhz"] = configuracao.desvioAudioKhz;
   desejado["muted"] = configuracao.audioMudo;
@@ -511,6 +520,8 @@ String Api::serializarEstado(bool comTipo) const {
   sistema["frequencyMinKhz"] = Configuracao::FREQUENCIA_MINIMA_KHZ;
   sistema["frequencyMaxKhz"] = Configuracao::FREQUENCIA_MAXIMA_KHZ;
   sistema["frequencyStepKhz"] = Configuracao::PASSO_FREQUENCIA_KHZ;
+  sistema["powerMinDbuv"] = Configuracao::POTENCIA_MINIMA_DBUV;
+  sistema["powerMaxDbuv"] = Configuracao::POTENCIA_MAXIMA_DBUV;
 
   String resposta;
   serializeJson(documento, resposta);
@@ -589,6 +600,9 @@ uint32_t Api::assinaturaEstado() const {
   dobra(configuracao.preEnfaseUs);
   dobra(configuracao.desvioAudioKhz);
   dobra(configuracao.estereo);
+  dobra(configuracao.componentesMultiplex());
+  dobra(configuracao.modoAudio());
+  dobra(configuracao.muteEntradas());
   dobra(configuracao.transmissaoHabilitada);
   dobra(configuracao.rdsHabilitado);
   dobra(configuracao.audioMudo);

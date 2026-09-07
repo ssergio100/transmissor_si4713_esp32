@@ -13,8 +13,9 @@ struct TelemetriaReceptorRda5807 {
 
 class ReceptorRda5807 {
  public:
-  bool iniciar(uint16_t frequenciaKhz);
+  bool iniciar(uint16_t frequenciaKhz, uint8_t volume);
   bool sintonizar(uint16_t frequenciaKhz);
+  bool configurarVolume(uint8_t volume);
   void processar();
 
   const TelemetriaReceptorRda5807& telemetria() const;

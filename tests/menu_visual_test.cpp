@@ -48,6 +48,8 @@ int main() {
   e.rds.habilitado = true;
   e.rds.pi = 0x4713;
   e.audio.estereo = true;
+  e.audio.componentesMultiplex = 7;
+  e.audio.modoAudio = 7;
   e.audio.preEnfaseUs = 50;
   e.audio.desvioKhz = 66;
   strcpy(e.rds.textoAtual, "Transmissor FM Si4713");
@@ -55,14 +57,33 @@ int main() {
   const std::vector<uint16_t> fundo(tela.getBuffer(), tela.getBuffer() + 320 * 240);
   salvarImagem("principal", tela);
 
-  const TelaPainel menus[] = {TelaPainel::RAIZ, TelaPainel::RF, TelaPainel::AUDIO, TelaPainel::RDS};
-  const char* arquivos[] = {"raiz", "rf", "audio", "rds"};
-  for (unsigned i = 0; i < 4; i++) {
+  const TelaPainel menus[] = {
+      TelaPainel::RAIZ, TelaPainel::RF, TelaPainel::AUDIO, TelaPainel::RDS,
+      TelaPainel::SISTEMA
+  };
+  const char* arquivos[] = {"raiz", "rf", "audio", "rds", "sistema"};
+  for (unsigned i = 0; i < 5; i++) {
     e.navegacao.tela = menus[i];
     desenharJanela(janela, tela, e);
     salvarImagem(arquivos[i], tela);
   }
+  e.navegacao.tela = TelaPainel::AUDIO;
+  e.navegacao.indice = 0;
+  e.navegacao.item = AUDIO_ESTEREO;
+  const uint8_t multiplex[] = {0, 3, 7, 1, 2,
+      ConfiguracaoTransmissor::APENAS_L, ConfiguracaoTransmissor::APENAS_R};
+  const char* previasMultiplex[] = {"modo_mono", "modo_estereo", "modo_rds", "modo_piloto", "modo_lmr", "modo_apenas_l", "modo_apenas_r"};
+  for (unsigned i = 0; i < sizeof(multiplex); ++i) {
+    e.audio.modoAudio = multiplex[i];
+    e.audio.componentesMultiplex = i < 5 ? multiplex[i] : 3;
+    desenharJanela(janela, tela, e);
+    assert(!janela.preparar(e));
+    salvarImagem(previasMultiplex[i], tela);
+  }
   // Atualizacoes periodicas e telemetria encoberta nao refazem a janela RDS.
+  e.navegacao.tela = TelaPainel::RDS;
+  e.navegacao.indice = 0;
+  desenharJanela(janela, tela, e);
   assert(!janela.preparar(e));
   e.audio.nivelDbfs = -20;
   e.receptor.rssi = 50;
@@ -105,10 +126,14 @@ int main() {
   e.navegacao.item = RF_FREQUENCIA;
   e.navegacao.valorEditado = 10800;
   desenharJanela(janela, tela, e); salvarImagem("frequencia", tela);
+  e.navegacao.tela = TelaPainel::SISTEMA;
+  e.navegacao.item = SISTEMA_REPOUSO;
+  e.navegacao.valorEditado = 30;
+  desenharJanela(janela, tela, e); salvarImagem("repouso", tela);
   e.navegacao.editando = false;
   e.navegacao.tela = TelaPainel::RF;
   e.navegacao.item = RF_TRANSMISSAO;
-  e.navegacao.indice = 3;
+  e.navegacao.indice = 0;
   desenharJanela(janela, tela, e); salvarImagem("transmissao", tela);
   e.rf.transmissaoHabilitada = false;
   assert(janela.preparar(e)); // Alternancia deve invalidar o valor na lista.
@@ -139,7 +164,6 @@ int main() {
   principal.renderizar(tela, e, false, true);
   desenharJanela(janela, tela, e); salvarImagem("busca", tela);
   e.varredura.ativa = false;
-  e.varredura.concluida = true;
   e.navegacao.resultadoBuscaDisponivel = true;
   e.rf.transmitindo = true;
   principal.renderizar(tela, e, false, true);

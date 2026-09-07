@@ -33,6 +33,8 @@ class RadioSi4713 {
   uint8_t endereco() const;
 
  private:
+  void registrarPropriedadeLida(
+      uint16_t propriedade, const char* nome, uint8_t unidadeHz = 0);
   bool inicializarNoEndereco(uint8_t endereco);
   bool enderecoResponde(uint8_t endereco);
   bool recuperar();

@@ -4,7 +4,7 @@
 
 #include "configuracao.h"
 
-bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
+bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz, uint8_t volume) {
   if (!enderecoResponde()) {
     Serial.println("[RDA5807] ausente no endereco sequencial 0x10");
     return false;
@@ -27,9 +27,11 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
   radio_.setBand(2);  // Faixa mundial: 76 a 108 MHz.
   radio_.setSoftmute(false);
   radio_.setAudioOutputHighImpedance(false);
-  radio_.setVolume(7);
+  radio_.setVolume(volume);
   radio_.setMute(false);
-  radio_.setMono(true);
+  // MONO=0 permite ao receptor decodificar o piloto e a diferenca L-R.
+  // MONO=1 forca a soma dos dois canais, mesmo quando o transmissor e estereo.
+  radio_.setMono(false);
   radio_.setRDS(false);  // Receptor usado somente para sintonia e RSSI.
   telemetria_.disponivel = true;
 
@@ -48,6 +50,12 @@ bool ReceptorRda5807::iniciar(uint16_t frequenciaKhz) {
       telemetria_.rssi,
       telemetria_.status0bBruto
   );
+  return true;
+}
+
+bool ReceptorRda5807::configurarVolume(uint8_t volume) {
+  if (volume > Configuracao::VOLUME_MONITOR_MAXIMO) return false;
+  if (telemetria_.disponivel) radio_.setVolume(volume);
   return true;
 }
 
@@ -76,7 +84,7 @@ void ReceptorRda5807::processar() {
   if (!telemetria_.disponivel) return;
   const uint32_t agora = millis();
   if (agora - ultimaLeituraMs_
-      < Configuracao::INTERVALO_ATUALIZACAO_DISPLAY_MS) {
+      < Configuracao::INTERVALO_RSSI_RECEPTOR_MS) {
     return;
   }
 

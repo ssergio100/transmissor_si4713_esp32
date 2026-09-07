@@ -62,7 +62,9 @@ WebSocket: ws://transmissor-si4713.local:81
     "firmwareVersion": "0.1.15",
     "frequencyMinKhz": 7610,
     "frequencyMaxKhz": 10800,
-    "frequencyStepKhz": 10
+    "frequencyStepKhz": 10,
+    "powerMinDbuv": 88,
+    "powerMaxDbuv": 118
   }
 }
 ```
@@ -75,6 +77,8 @@ confundir o estado anterior armazenado no navegador com o estado atual.
 `system.frequencyMinKhz`, `frequencyMaxKhz` e `frequencyStepKhz` informam a
 faixa e o passo de sintonia válidos — a interface deve usá-los para limitar os
 campos em vez de valores fixos.
+`system.powerMinDbuv` e `powerMaxDbuv` fornecem os limites equivalentes para a
+potência de transmissão.
 Os campos `si4713Interrupt*` registram os episódios recebidos em GP2/INT, a
 causa confirmada por uma leitura `TX_ASQ_STATUS` e se o alerta aguarda
 reconhecimento. Os valores possíveis de
@@ -91,7 +95,7 @@ Limites principais:
 - `frequencyKhz`: de `system.frequencyMinKhz` (76,1 MHz = 7610) a
   `system.frequencyMaxKhz` (108,0 MHz = 10800), no passo
   `system.frequencyStepKhz` (10 kHz);
-- `powerDbuv`: 88 a 115;
+- `powerDbuv`: 88 a 118;
 - `antennaCap`: `0` seleciona AUTO; de `1` a `191`, cada passo representa
   `0,25 pF` (ajuste manual de `0,25` a `47,75 pF`). Em `applied`, o Si4713
   devolve o valor efetivo escolhido, inclusive quando `desired` está em AUTO;

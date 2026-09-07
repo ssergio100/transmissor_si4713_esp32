@@ -52,6 +52,8 @@ let state: DeviceState = {
     frequencyMinKhz: 7610,
     frequencyMaxKhz: 10800,
     frequencyStepKhz: 10,
+    powerMinDbuv: 88,
+    powerMaxDbuv: 118,
   },
 }
 

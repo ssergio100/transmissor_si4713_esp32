@@ -28,6 +28,8 @@ React é uma segunda forma de operação sobre o mesmo estado do transmissor.
 - ajuste local de frequência com rascunho: o giro não altera o TX; o clique
   aplica e grava a frequência. A prévia de sintonia da interface web permanece
   disponível pelos endpoints existentes;
+- passo local de frequência configurável em 0,1 ou 0,2 MHz, com o padrão
+  brasileiro de 0,2 MHz selecionado de fábrica;
 - interface React/Vite responsiva, com modo de simulação para desenvolvimento.
 
 O frontend permanece separado e não é gravado no ESP32 nesta fase.
@@ -74,7 +76,8 @@ serial. Reinicie o Vite depois de alterar o arquivo.
 
 Sem credenciais válidas, o equipamento cria a rede `TRANSMISSOR-SI4713`.
 Conecte-se a ela e abra `http://192.168.4.1` para escolher a rede local. O mesmo
-portal pode ser solicitado pela interface web. O menu físico SISTEMA foi removido.
+portal pode ser solicitado pela interface web. O menu físico SISTEMA contém a
+configuração de repouso do display.
 
 As credenciais ficam na área persistente administrada pela pilha Wi-Fi do ESP32.
 Elas não são armazenadas em `configuracao.h`, no React ou em arquivos de projeto.

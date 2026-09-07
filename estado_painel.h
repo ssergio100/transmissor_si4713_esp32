@@ -13,6 +13,7 @@ enum class TelaPainel : uint8_t {
   RDS,
   MONITOR,
   VARREDURA,
+  SISTEMA,
 };
 
 enum ItemPainel : uint8_t {
@@ -23,6 +24,7 @@ enum ItemPainel : uint8_t {
   RAIZ_RDS,
   RAIZ_MONITOR,
   RAIZ_VARREDURA,
+  RAIZ_SISTEMA,
   RAIZ_VOLTAR,
 
   RF_FREQUENCIA,
@@ -45,6 +47,11 @@ enum ItemPainel : uint8_t {
 
   VARREDURA_USAR_MELHOR,
   VARREDURA_VOLTAR,
+
+  SISTEMA_REPOUSO,
+  SISTEMA_PASSO_FREQUENCIA,
+  SISTEMA_VOLUME_MONITOR,
+  SISTEMA_VOLTAR,
 };
 
 struct NavegacaoPainel {
@@ -65,11 +72,8 @@ struct NavegacaoPainel {
 struct RfPainel {
   // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
   uint16_t frequenciaKhz = 0;
-  uint16_t frequenciaEfetivaKhz = 0;
   uint8_t potenciaDbuv = 0;
-  uint8_t potenciaEfetivaDbuv = 0;
   uint8_t capacitanciaAntena = 0;
-  uint8_t capacitanciaEfetiva = 0;
   bool transmissaoHabilitada = false;
   bool transmitindo = false;
 };
@@ -80,20 +84,18 @@ struct AudioPainel {
   int8_t nivelDbfs = -70;
   uint8_t asq = 0;
   bool estereo = false;
+  uint8_t componentesMultiplex = 0;
+  uint8_t modoAudio = 0;
   bool mudo = false;
 };
 
 struct RdsPainel {
   uint16_t pi = 0;
   bool habilitado = false;
-  char ps[9] = {};
-  char texto[33] = {};
   char textoAtual[33] = {};  // Frase manual ou ultimo RadioText dinamico aplicado.
 };
 
 struct ReceptorPainel {
-  // Unidade legada: passos de 10 kHz (9950 = 99.50 MHz).
-  uint16_t frequenciaKhz = 0;
   uint8_t rssi = 0;
   bool disponivel = false;
   bool leituraRssiValida = false;
@@ -101,21 +103,15 @@ struct ReceptorPainel {
 
 struct VarreduraPainel {
   uint16_t melhorFrequenciaKhz = 0;
-  uint8_t melhorNivelRuido = 0;
   uint8_t progresso = 0;
   bool ativa = false;
-  bool concluida = false;
 };
 
 struct SistemaPainel {
-  const char* versaoFirmware = "";
-  uint16_t recuperacoes = 0;
-  uint32_t falhasComunicacao = 0;
-  uint32_t inconsistenciasRf = 0;
-  uint32_t interrupcoesSi4713 = 0;
   bool si4713Disponivel = false;
-  bool recuperando = false;
-  bool alertaSi4713Pendente = false;
+  uint16_t repousoDisplaySegundos = 0;
+  uint8_t passoFrequenciaKhz = 0;
+  uint8_t volumeMonitor = 0;
 };
 
 struct EstadoPainel {

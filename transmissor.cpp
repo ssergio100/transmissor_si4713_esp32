@@ -15,7 +15,7 @@ bool Transmissor::iniciar() {
 
   configuracao_.sanitizarTextos();
   const bool radioIniciado = radio_.iniciar();
-  receptor_.iniciar(configuracao_.frequenciaKhz);
+  receptor_.iniciar(configuracao_.frequenciaKhz, configuracao_.volumeMonitor);
   if (!radioIniciado) return false;
   radioDisponivelNoCicloAnterior_ = true;
   return aplicarConfiguracao(configuracao_);
@@ -98,6 +98,34 @@ bool Transmissor::salvarConfiguracao() {
     return false;
   }
   return Persistencia::salvar(configuracao_);
+}
+
+bool Transmissor::configurarRepousoDisplay(uint16_t segundos) {
+  ConfiguracaoTransmissor alterada = configuracao_;
+  alterada.repousoDisplaySegundos = segundos;
+  if (!alterada.valoresValidos()) return false;
+  if (!Persistencia::salvarRepousoDisplay(segundos)) return false;
+  configuracao_ = alterada;
+  return true;
+}
+
+bool Transmissor::configurarPassoFrequencia(uint8_t passoKhz) {
+  ConfiguracaoTransmissor alterada = configuracao_;
+  alterada.passoFrequenciaKhz = passoKhz;
+  if (!alterada.valoresValidos()) return false;
+  if (!Persistencia::salvarPassoFrequencia(passoKhz)) return false;
+  configuracao_ = alterada;
+  return true;
+}
+
+bool Transmissor::configurarVolumeMonitor(uint8_t volume) {
+  ConfiguracaoTransmissor alterada = configuracao_;
+  alterada.volumeMonitor = volume;
+  if (!alterada.valoresValidos()) return false;
+  if (!Persistencia::salvarVolumeMonitor(volume)) return false;
+  if (!receptor_.configurarVolume(volume)) return false;
+  configuracao_ = alterada;
+  return true;
 }
 
 bool Transmissor::restaurarPadroes() {

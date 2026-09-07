@@ -24,6 +24,19 @@ void formatarAntena(char* texto, size_t capacidade, uint8_t antena) {
   else snprintf(texto, capacidade, "%u.%02u pF", antena / 4, (antena % 4) * 25);
 }
 
+// segundos: zero desativa o repouso automatico.
+void formatarRepouso(char* texto, size_t capacidade, uint16_t segundos) {
+  if (segundos == 0) snprintf(texto, capacidade, "NUNCA");
+  else if (segundos < 60) snprintf(texto, capacidade, "%u S", segundos);
+  else snprintf(texto, capacidade, "%u MIN", segundos / 60);
+}
+
+// passoKhz usa a unidade legada: 10 representa 100 kHz e 20 representa 200 kHz.
+void formatarPassoFrequencia(char* texto, size_t capacidade, uint8_t passoKhz) {
+  snprintf(texto, capacidade, "0.%u MHz%s", passoKhz / 10,
+           passoKhz == Configuracao::PASSO_FREQUENCIA_PADRAO_KHZ ? " BR" : "");
+}
+
 void valorAtual(ItemPainel item, const EstadoPainel& estado, char* texto, size_t capacidade) {
   texto[0] = '\0';
   switch (item) {
@@ -31,12 +44,34 @@ void valorAtual(ItemPainel item, const EstadoPainel& estado, char* texto, size_t
     case RF_POTENCIA: snprintf(texto, capacidade, "%u dBuV", estado.rf.potenciaDbuv); break;
     case RF_ANTENA: formatarAntena(texto, capacidade, estado.rf.capacitanciaAntena); break;
     case RF_TRANSMISSAO: snprintf(texto, capacidade, "%s", estado.rf.transmissaoHabilitada ? "LIGADO" : "DESLIGADO"); break;
-    case AUDIO_ESTEREO: snprintf(texto, capacidade, "%s", estado.audio.estereo ? "ESTEREO" : "MONO"); break;
+    case AUDIO_ESTEREO: {
+      const char* nome = "MONO + RDS"; // Preferencia legada.
+      switch (estado.audio.modoAudio) {
+        case 0: nome = "MONO"; break;
+        case 3: nome = "ESTEREO"; break;
+        case 7: nome = "ESTEREO + RDS"; break;
+        case 1: nome = "SOMENTE PILOTO"; break;
+        case 2: nome = "SOMENTE L-R"; break;
+        case ConfiguracaoTransmissor::APENAS_L: nome = "APENAS L"; break;
+        case ConfiguracaoTransmissor::APENAS_R: nome = "APENAS R"; break;
+      }
+      snprintf(texto, capacidade, "%s", nome);
+      break;
+    }
     case AUDIO_PRE_ENFASE: snprintf(texto, capacidade, "%u us", estado.audio.preEnfaseUs); break;
     case AUDIO_DESVIO: snprintf(texto, capacidade, "%u kHz", estado.audio.desvioKhz); break;
     case ItemPainel::AUDIO_MUDO: snprintf(texto, capacidade, "%s", estado.audio.mudo ? "MUDA" : "ATIVA"); break;
     case RDS_HABILITADO: snprintf(texto, capacidade, "%s", estado.rds.habilitado ? "LIGADO" : "DESLIGADO"); break;
     case RDS_PI: snprintf(texto, capacidade, "%04X", estado.rds.pi); break;
+    case SISTEMA_REPOUSO:
+      formatarRepouso(texto, capacidade, estado.sistema.repousoDisplaySegundos);
+      break;
+    case SISTEMA_PASSO_FREQUENCIA:
+      formatarPassoFrequencia(texto, capacidade, estado.sistema.passoFrequenciaKhz);
+      break;
+    case SISTEMA_VOLUME_MONITOR:
+      snprintf(texto, capacidade, "%u / 15", estado.sistema.volumeMonitor);
+      break;
     default: break;
   }
 }
@@ -69,13 +104,21 @@ bool JanelaMenuTft::conteudoMudou(const EstadoPainel& estado) const {
           || estado.rf.capacitanciaAntena != anterior_.rf.capacitanciaAntena
           || estado.rf.transmissaoHabilitada != anterior_.rf.transmissaoHabilitada;
     case Tela::AUDIO:
-      return estado.audio.estereo != anterior_.audio.estereo
+      return estado.audio.modoAudio != anterior_.audio.modoAudio
+          || estado.audio.componentesMultiplex != anterior_.audio.componentesMultiplex
+          || estado.audio.estereo != anterior_.audio.estereo
           || estado.audio.mudo != anterior_.audio.mudo
           || estado.audio.preEnfaseUs != anterior_.audio.preEnfaseUs
           || estado.audio.desvioKhz != anterior_.audio.desvioKhz;
     case Tela::RDS:
       return estado.rds.habilitado != anterior_.rds.habilitado
           || estado.rds.pi != anterior_.rds.pi;
+    case Tela::SISTEMA:
+      return estado.sistema.repousoDisplaySegundos
+              != anterior_.sistema.repousoDisplaySegundos
+          || estado.sistema.passoFrequenciaKhz
+              != anterior_.sistema.passoFrequenciaKhz
+          || estado.sistema.volumeMonitor != anterior_.sistema.volumeMonitor;
     case Tela::MONITOR:
       return estado.rf.transmitindo != anterior_.rf.transmitindo
           || (estado.rf.transmitindo
@@ -121,7 +164,9 @@ void JanelaMenuTft::mostrarLista(const EstadoPainel& estado) {
   const NavegacaoPainel& navegacao = estado.navegacao;
   const bool inicial = navegacao.tela == Tela::RAIZ;
   if (!inicial) {
-    const char* nome = navegacao.tela == Tela::RF ? "RF" : navegacao.tela == Tela::AUDIO ? "AUDIO" : "RDS";
+    const char* nome = navegacao.tela == Tela::RF ? "RF"
+        : navegacao.tela == Tela::AUDIO ? "AUDIO"
+        : navegacao.tela == Tela::RDS ? "RDS" : "SISTEMA";
     titulo(nome);
   }
   uint8_t quantidade;
@@ -147,6 +192,27 @@ void JanelaMenuTft::mostrarEdicao(const NavegacaoPainel& edicao) {
     case RF_POTENCIA: snprintf(valor, sizeof(valor), "%ld dBuV", static_cast<long>(edicao.valorEditado)); break;
     case RF_ANTENA: formatarAntena(valor, sizeof(valor), edicao.valorEditado); break;
     case AUDIO_DESVIO: snprintf(valor, sizeof(valor), "%ld kHz", static_cast<long>(edicao.valorEditado)); break;
+    case SISTEMA_REPOUSO: {
+      const auto& tempos = Configuracao::TEMPOS_REPOUSO_DISPLAY_SEGUNDOS;
+      const uint8_t quantidade = sizeof(tempos) / sizeof(tempos[0]);
+      constexpr uint8_t linhasVisiveis = 5;
+      uint8_t selecionado = 0;
+      while (selecionado < quantidade
+             && tempos[selecionado] != edicao.valorEditado) selecionado++;
+      uint8_t primeira = selecionado >= linhasVisiveis
+          ? selecionado - linhasVisiveis + 1 : 0;
+      for (uint8_t i = primeira;
+           i < quantidade && i < primeira + linhasVisiveis; i++) {
+        formatarRepouso(valor, sizeof(valor), tempos[i]);
+        linha(34 + (i - primeira) * ALTURA_ITEM,
+              valor, "", edicao.valorEditado == tempos[i]);
+      }
+      return;
+    }
+    case SISTEMA_VOLUME_MONITOR:
+      snprintf(valor, sizeof(valor), "%ld / 15",
+               static_cast<long>(edicao.valorEditado));
+      break;
     default: valor[0] = '\0'; break;
   }
   textoCentral(83, valor, 3, VALOR_MENU);

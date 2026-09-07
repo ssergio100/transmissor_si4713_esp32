@@ -82,12 +82,37 @@ bool RadioSi4713::iniciar() {
   return false;
 }
 
+void RadioSi4713::registrarPropriedadeLida(
+    uint16_t propriedade, const char* nome, uint8_t unidadeHz) {
+  uint16_t valor = 0;
+  if (!radio_.getProperty(propriedade, valor)) {
+    Serial.printf("[SI4713][LEITURA] 0x%04X %s: FALHA (%s)\n",
+        static_cast<unsigned>(propriedade), nome, radio_.ultimaFalha());
+    return;
+  }
+  Serial.printf("[SI4713][LEITURA] 0x%04X %s = 0x%04X (%u)",
+      static_cast<unsigned>(propriedade), nome,
+      static_cast<unsigned>(valor), static_cast<unsigned>(valor));
+  if (unidadeHz) {
+    Serial.printf(" = %lu Hz", static_cast<unsigned long>(valor) * unidadeHz);
+  }
+  Serial.println();
+}
+
 bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   if (!telemetria_.si4713Disponivel
       || telemetria_.varreduraAtiva
       || !configuracao.valoresValidos()) {
     return false;
   }
+
+  // Diagnostico somente por GET_PROPERTY, antes de qualquer escrita desta
+  // aplicacao. Nunca apresenta preferencias ou valores esperados como leitura.
+  Serial.println("[SI4713][LEITURA] ANTES de aplicar configuracao");
+  registrarPropriedadeLida(SI4713_PROP_TX_COMPONENT_ENABLE, "TX_COMPONENT_ENABLE");
+  registrarPropriedadeLida(SI4713_PROP_TX_PILOT_DEVIATION, "TX_PILOT_DEVIATION", 10);
+  registrarPropriedadeLida(SI4713_PROP_TX_PILOT_FREQUENCY, "TX_PILOT_FREQUENCY", 1);
+  registrarPropriedadeLida(SI4713_PROP_TX_LINE_INPUT_MUTE, "TX_LINE_INPUT_MUTE");
 
   const bool primeiraAplicacao = !configurado_;
   const bool sintoniaMudou = primeiraAplicacao
@@ -178,8 +203,7 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   }
 
   if (primeiraAplicacao
-      || configuracao.desvioAudioKhz != configuracaoAplicada_.desvioAudioKhz
-      || baseRdsMudou) {
+      || configuracao.desvioAudioKhz != configuracaoAplicada_.desvioAudioKhz) {
     if (!confirmarOperacao(
             radio_.setProperty(
                 SI4713_PROP_TX_AUDIO_DEVIATION,
@@ -193,11 +217,11 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   }
 
   if (primeiraAplicacao
-      || configuracao.audioMudo != configuracaoAplicada_.audioMudo) {
+      || configuracao.muteEntradas() != configuracaoAplicada_.muteEntradas()) {
     if (!confirmarOperacao(
             radio_.setProperty(
                 SI4713_PROP_TX_LINE_INPUT_MUTE,
-                configuracao.audioMudo ? 0x0003 : 0x0000
+                configuracao.muteEntradas()
             ),
             "mute de audio",
             true
@@ -207,11 +231,9 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
   }
 
   if (primeiraAplicacao
-      || configuracao.estereo != configuracaoAplicada_.estereo
+      || configuracao.componentesMultiplex() != configuracaoAplicada_.componentesMultiplex()
       || configuracao.rdsHabilitado != configuracaoAplicada_.rdsHabilitado) {
-    uint16_t componentes = 0;
-    if (configuracao.estereo) componentes |= 0x0003;
-    if (configuracao.rdsHabilitado) componentes |= 0x0004;
+    const uint16_t componentes = configuracao.componentesMultiplex();
     if (!confirmarOperacao(
             radio_.setProperty(SI4713_PROP_TX_COMPONENT_ENABLE, componentes),
             "componentes de audio",
@@ -221,16 +243,26 @@ bool RadioSi4713::aplicar(const ConfiguracaoTransmissor& configuracao) {
     }
   }
 
+  if ((configuracao.modoAudio() == ConfiguracaoTransmissor::APENAS_L
+          || configuracao.modoAudio() == ConfiguracaoTransmissor::APENAS_R)
+      && (primeiraAplicacao
+          || configuracao.modoAudio() != configuracaoAplicada_.modoAudio()
+          || configuracao.muteEntradas() != configuracaoAplicada_.muteEntradas())) {
+    Serial.printf("[SI4713][LEITURA] APOS selecionar %s\n",
+        configuracao.modoAudio() == ConfiguracaoTransmissor::APENAS_L
+            ? "Apenas L" : "Apenas R");
+    registrarPropriedadeLida(SI4713_PROP_TX_LINE_INPUT_MUTE, "TX_LINE_INPUT_MUTE");
+  }
+
   if (baseRdsMudou || primeiraAplicacao
-      || configuracao.estereo != configuracaoAplicada_.estereo) {
+      || configuracao.componentesMultiplex() != configuracaoAplicada_.componentesMultiplex()) {
     uint16_t componentes = 0, desvio = 0, pi = 0;
     if (!confirmarOperacao(
             radio_.getProperty(SI4713_PROP_TX_COMPONENT_ENABLE, componentes)
                 && radio_.getProperty(SI4713_PROP_TX_RDS_DEVIATION, desvio)
                 && radio_.getProperty(SI4713_PROP_TX_RDS_PI, pi),
             "confirmar propriedades RDS", true)) return false;
-    const uint16_t esperado = (configuracao.estereo ? 3 : 0)
-        | (configuracao.rdsHabilitado ? 4 : 0);
+    const uint16_t esperado = configuracao.componentesMultiplex();
     Serial.printf("[SI4713][RDS] lido do chip: componentes=0x%04X "
         "RDS=%u piloto=%u L-R=%u desvio=%uHz PI=0x%04X\n",
         componentes, (componentes >> 2) & 1, componentes & 1,

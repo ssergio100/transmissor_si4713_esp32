@@ -36,7 +36,20 @@ struct ConfiguracaoTransmissor {
   char rdsPs[9] = "SI4713";
   char rdsText[33] = "Transmissor FM Si4713";
   char rdsModelo[33] = "{data} {hora}";
+  uint16_t repousoDisplaySegundos =
+      Configuracao::TEMPO_REPOUSO_DISPLAY_PADRAO_SEGUNDOS;
+  uint8_t passoFrequenciaKhz = Configuracao::PASSO_FREQUENCIA_PADRAO_KHZ;
+  uint8_t volumeMonitor = Configuracao::VOLUME_MONITOR_PADRAO;
 
+  // 0xFF preserva a combinacao das preferencias legadas Mono/Estereo e RDS.
+  static constexpr uint8_t APENAS_L = 0x10;
+  static constexpr uint8_t APENAS_R = 0x11;
+  uint8_t modoMultiplex = 0xFF;
+
+  uint8_t modoAudio() const;
+  uint8_t componentesMultiplex() const;
+  uint8_t muteEntradas() const;
+  void selecionarMultiplex(uint8_t modo);
   void aplicarPadroes();
   void sanitizarTextos();
   bool valoresValidos() const;

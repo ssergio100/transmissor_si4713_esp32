@@ -22,12 +22,31 @@ Api api(transmissor, frasesRds);
 namespace {
 
 uint32_t ultimaAtualizacaoDisplayMs = 0;
+uint32_t ultimaAtividadeDisplayMs = 0;
 
 // acao: pedido do menu. configuracaoEditada: copia atual com o campo confirmado.
 void executarAcao(Menu::Acao acao, const ConfiguracaoTransmissor& configuracaoEditada) {
   using Acao = Menu::Acao;
   switch (acao) {
     case Acao::APLICAR_CONFIGURACAO:
+      if (menu.navegacao().item == AUDIO_ESTEREO) {
+        const uint8_t componentes = configuracaoEditada.componentesMultiplex();
+        const char* modo = "Desconhecido";
+        switch (configuracaoEditada.modoAudio()) {
+          case 0x0000: modo = "Mono"; break;
+          case 0x0003: modo = "Estereo"; break;
+          case 0x0007: modo = "Estereo + RDS"; break;
+          case 0x0001: modo = "Somente piloto"; break;
+          case 0x0002: modo = "Somente L-R"; break;
+          case ConfiguracaoTransmissor::APENAS_L: modo = "Apenas L"; break;
+          case ConfiguracaoTransmissor::APENAS_R: modo = "Apenas R"; break;
+        }
+        Serial.printf("Modo selecionado: %s\n"
+                      "Valor enviado para TX_COMPONENT_ENABLE: 0x%04X\n"
+                      "Valor enviado para TX_LINE_INPUT_MUTE: 0x%04X\n",
+                      modo, static_cast<unsigned>(componentes),
+                      static_cast<unsigned>(configuracaoEditada.muteEntradas()));
+      }
       menu.concluirAplicacao(transmissor.aplicarConfiguracao(configuracaoEditada));
       break;
     case Acao::APLICAR_FREQUENCIA:
@@ -45,6 +64,21 @@ void executarAcao(Menu::Acao acao, const ConfiguracaoTransmissor& configuracaoEd
       menu.concluirAplicacao(resultadoValido && transmissor.aplicarFrequencia(melhor));
       break;
     }
+    case Acao::SALVAR_REPOUSO_DISPLAY:
+      menu.concluirAplicacao(transmissor.configurarRepousoDisplay(
+          configuracaoEditada.repousoDisplaySegundos
+      ));
+      break;
+    case Acao::SALVAR_PASSO_FREQUENCIA:
+      menu.concluirAplicacao(transmissor.configurarPassoFrequencia(
+          configuracaoEditada.passoFrequenciaKhz
+      ));
+      break;
+    case Acao::SALVAR_VOLUME_MONITOR:
+      menu.concluirAplicacao(transmissor.configurarVolumeMonitor(
+          configuracaoEditada.volumeMonitor
+      ));
+      break;
     default: break;
   }
 }
@@ -53,6 +87,13 @@ bool processarControles() {
   const Controles::Evento evento = controles.consumirEvento();
   using Evento = Controles::TipoEvento;
   if (evento.tipo == Evento::NENHUM) return false;
+
+  ultimaAtividadeDisplayMs = millis();
+  if (displayTft.emRepouso()) {
+    // O evento que acorda a tela nao navega nem altera uma configuracao.
+    displayTft.sairRepouso();
+    return true;
+  }
 
   ConfiguracaoTransmissor editada = transmissor.copiarConfiguracao();
   Menu::Acao acao = Menu::NENHUMA;
@@ -154,6 +195,7 @@ void setup() {
   api.iniciar();
 
   renderizarDisplay();
+  ultimaAtividadeDisplayMs = millis();
   Serial.println("[BOOT] Sistema local, rede e API inicializados");
 }
 
@@ -171,8 +213,22 @@ void loop() {
                          transmissor.melhorFrequencia());
 
   const uint32_t agora = millis();
+  const uint16_t repousoSegundos =
+      transmissor.configuracao().repousoDisplaySegundos;
+  const uint32_t limiteRepousoMs =
+      static_cast<uint32_t>(repousoSegundos) * 1000UL;
+  if (!displayTft.emRepouso()
+      && repousoSegundos != 0
+      && agora - ultimaAtividadeDisplayMs >= limiteRepousoMs) {
+    displayTft.entrarRepouso();
+    Serial.println("[TFT] Display em repouso por inatividade");
+  }
   if (controleProcessado
-      || agora - ultimaAtualizacaoDisplayMs
+      && !displayTft.emRepouso()) {
+    ultimaAtualizacaoDisplayMs = agora;
+    renderizarDisplay();
+  } else if (!displayTft.emRepouso()
+      && agora - ultimaAtualizacaoDisplayMs
       >= Configuracao::INTERVALO_ATUALIZACAO_DISPLAY_MS) {
     ultimaAtualizacaoDisplayMs = agora;
     renderizarDisplay();

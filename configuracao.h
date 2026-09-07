@@ -49,6 +49,23 @@ constexpr int PIN_INTERRUPCAO_SI4713 = 4;
 
 constexpr uint32_t TEMPO_PRESSIONAMENTO_LONGO_MS = 700;
 constexpr uint32_t INTERVALO_ATUALIZACAO_DISPLAY_MS = 250;
+// Leitura periódica do RSSI do receptor monitor. Mantida separada do display
+// para permitir diagnosticar pulsos I2C audíveis no caminho analógico.
+constexpr uint32_t INTERVALO_RSSI_RECEPTOR_MS = 1000;
+
+// Tempos oferecidos no menu SISTEMA > REPOUSO. Zero mantem o display ligado.
+// Para alterar as opcoes, edite somente esta lista.
+constexpr uint16_t TEMPOS_REPOUSO_DISPLAY_SEGUNDOS[] = {
+    0, 15, 30, 60, 300, 900, 1800
+};
+constexpr uint16_t TEMPO_REPOUSO_DISPLAY_PADRAO_SEGUNDOS = 300;
+// Passos oferecidos ao ajustar a frequencia pelo encoder. Na canalizacao
+// brasileira, as portadoras FM sao separadas por 200 kHz.
+constexpr uint16_t PASSOS_FREQUENCIA_KHZ[] = {10, 20};
+constexpr uint16_t PASSO_FREQUENCIA_PADRAO_KHZ = 20;
+constexpr uint8_t VOLUME_MONITOR_MINIMO = 0;
+constexpr uint8_t VOLUME_MONITOR_MAXIMO = 15;
+constexpr uint8_t VOLUME_MONITOR_PADRAO = 7;
 // Confirmacoes ficam visiveis por um segundo completo, mas qualquer novo
 // evento do encoder as encerra imediatamente para manter o painel responsivo.
 constexpr uint32_t TEMPO_MENSAGEM_DISPLAY_MS = 1000;

@@ -15,13 +15,14 @@ const OpcaoMenu menuInicial[] = {
     {RAIZ_RDS, "RDS"},
     {RAIZ_MONITOR, "MONITOR"},
     {RAIZ_VARREDURA, "CANAL LIVRE"},
+    {RAIZ_SISTEMA, "SISTEMA"},
     {RAIZ_VOLTAR, "VOLTAR"},
 };
 const OpcaoMenu menuRf[] = {
+    {RF_TRANSMISSAO, "TRANSMISSAO"},
     {RF_FREQUENCIA, "FREQUENCIA"},
     {RF_POTENCIA, "POTENCIA"},
     {RF_ANTENA, "ANTENA"},
-    {RF_TRANSMISSAO, "TRANSMISSAO"},
     {RF_VOLTAR, "VOLTAR"},
 };
 const OpcaoMenu menuAudio[] = {
@@ -42,6 +43,12 @@ const OpcaoMenu menuResultado[] = {
     {VARREDURA_VOLTAR, "VOLTAR"},
     {VARREDURA_USAR_MELHOR, "APLICAR"},
 };
+const OpcaoMenu menuSistema[] = {
+    {SISTEMA_REPOUSO, "REPOUSO"},
+    {SISTEMA_PASSO_FREQUENCIA, "PASSO FREQUENCIA"},
+    {SISTEMA_VOLUME_MONITOR, "VOLUME MONITOR"},
+    {SISTEMA_VOLTAR, "VOLTAR"},
+};
 
 // atual e passos usam a unidade do parametro; minimo/maximo sao inclusivos.
 int32_t ajustarNumero(int32_t atual, int8_t passos, int32_t minimo,
@@ -50,6 +57,24 @@ int32_t ajustarNumero(int32_t atual, int8_t passos, int32_t minimo,
   if (novo < minimo) return minimo;
   if (novo > maximo) return maximo;
   return novo;
+}
+
+// Move pela grade que comeca em 76,1 MHz. Se a frequencia atual estiver fora
+// da grade escolhida, o primeiro giro entra no canal valido da mesma direcao.
+int32_t ajustarFrequencia(int32_t atual, int8_t passos, int32_t passo) {
+  const int32_t minimo = Configuracao::FREQUENCIA_MINIMA_KHZ;
+  const int32_t maximo = Configuracao::FREQUENCIA_MAXIMA_KHZ;
+  const int32_t deslocamento = atual - minimo;
+  int32_t indice;
+  if (passos > 0) {
+    indice = deslocamento / passo + passos;
+  } else {
+    indice = (deslocamento + passo - 1) / passo + passos;
+  }
+  if (indice < 0) indice = 0;
+  const int32_t ultimoIndice = (maximo - minimo) / passo;
+  if (indice > ultimoIndice) indice = ultimoIndice;
+  return minimo + indice * passo;
 }
 
 char ajustarCaractere(char atual, int8_t passos, bool hexadecimal) {
@@ -76,12 +101,17 @@ const OpcaoMenu* opcoesMenu(TelaPainel tela, uint8_t& quantidade) {
       quantidade = sizeof(menuRds) / sizeof(menuRds[0]); return menuRds;
     case Tela::VARREDURA:
       quantidade = sizeof(menuResultado) / sizeof(menuResultado[0]); return menuResultado;
+    case Tela::SISTEMA:
+      quantidade = sizeof(menuSistema) / sizeof(menuSistema[0]); return menuSistema;
     default: quantidade = 0; return nullptr;
   }
 }
 
 const char* nomeItemMenu(ItemPainel item) {
-  const Tela telas[] = {Tela::RAIZ, Tela::RF, Tela::AUDIO, Tela::RDS, Tela::VARREDURA};
+  const Tela telas[] = {
+      Tela::RAIZ, Tela::RF, Tela::AUDIO, Tela::RDS, Tela::VARREDURA,
+      Tela::SISTEMA
+  };
   for (Tela tela : telas) {
     uint8_t quantidade;
     const OpcaoMenu* opcoes = opcoesMenu(tela, quantidade);
@@ -110,7 +140,10 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
       return NENHUMA;
     }
     copiarCampoConfirmado(configuracao);
-    return itemAtual() == RF_FREQUENCIA ? APLICAR_FREQUENCIA : APLICAR_CONFIGURACAO;
+    if (itemAtual() == RF_FREQUENCIA) return APLICAR_FREQUENCIA;
+    if (itemAtual() == SISTEMA_REPOUSO) return SALVAR_REPOUSO_DISPLAY;
+    if (itemAtual() == SISTEMA_VOLUME_MONITOR) return SALVAR_VOLUME_MONITOR;
+    return APLICAR_CONFIGURACAO;
   }
   if (tela_ == Tela::RAIZ) {
     indiceRaiz_ = indice_;
@@ -125,6 +158,7 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
         varreduraAtiva_ = true;
         resultadoDisponivel_ = false;
         return INICIAR_VARREDURA;
+      case RAIZ_SISTEMA: entrar(Tela::SISTEMA); break;
       default: entrar(Tela::PRINCIPAL); break;
     }
     return NENHUMA;
@@ -134,9 +168,19 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
     case RF_TRANSMISSAO:
       configuracao.transmissaoHabilitada = !configuracao.transmissaoHabilitada;
       return APLICAR_CONFIGURACAO;
-    case AUDIO_ESTEREO:
-      configuracao.estereo = !configuracao.estereo;
+    case AUDIO_ESTEREO: {
+      const uint8_t modos[] = {0, 3, 7, 1, 2,
+          ConfiguracaoTransmissor::APENAS_L, ConfiguracaoTransmissor::APENAS_R};
+      uint8_t proximo = 0;
+      for (unsigned i = 0; i < sizeof(modos); ++i) {
+        if (configuracao.modoAudio() == modos[i]) {
+          proximo = modos[(i + 1) % sizeof(modos)];
+          break;
+        }
+      }
+      configuracao.selecionarMultiplex(proximo);
       return APLICAR_CONFIGURACAO;
+    }
     case AUDIO_PRE_ENFASE:
       configuracao.preEnfaseUs = configuracao.preEnfaseUs == 50 ? 75 : 50;
       return APLICAR_CONFIGURACAO;
@@ -145,8 +189,14 @@ Menu::Acao Menu::selecionar(ConfiguracaoTransmissor& configuracao) {
       return APLICAR_CONFIGURACAO;
     case RDS_HABILITADO:
       configuracao.rdsHabilitado = !configuracao.rdsHabilitado;
+      configuracao.modoMultiplex = 0xFF;
       return APLICAR_CONFIGURACAO;
-    case RF_VOLTAR: case AUDIO_VOLTAR: case RDS_VOLTAR: voltarAoMenu(); break;
+    case SISTEMA_PASSO_FREQUENCIA:
+      configuracao.passoFrequenciaKhz =
+          configuracao.passoFrequenciaKhz == 20 ? 10 : 20;
+      return SALVAR_PASSO_FREQUENCIA;
+    case RF_VOLTAR: case AUDIO_VOLTAR: case RDS_VOLTAR:
+    case SISTEMA_VOLTAR: voltarAoMenu(); break;
     default: iniciarEdicao(configuracao); break;
   }
   return NENHUMA;
@@ -158,10 +208,19 @@ void Menu::iniciarEdicao(const ConfiguracaoTransmissor& configuracao) {
   comprimentoTexto_ = 0;
   cursorTexto_ = 0;
   switch (itemAtual()) {
-    case RF_FREQUENCIA: valorEditado_ = configuracao.frequenciaKhz; break;
+    case RF_FREQUENCIA:
+      valorEditado_ = configuracao.frequenciaKhz;
+      passoFrequenciaEdicao_ = configuracao.passoFrequenciaKhz;
+      break;
     case RF_POTENCIA: valorEditado_ = configuracao.potenciaDbuv; break;
     case RF_ANTENA: valorEditado_ = configuracao.capacitanciaAntena; break;
     case AUDIO_DESVIO: valorEditado_ = configuracao.desvioAudioKhz; break;
+    case SISTEMA_REPOUSO:
+      valorEditado_ = configuracao.repousoDisplaySegundos;
+      break;
+    case SISTEMA_VOLUME_MONITOR:
+      valorEditado_ = configuracao.volumeMonitor;
+      break;
     case RDS_PS:
       comprimentoTexto_ = 8;
       ConfiguracaoTransmissor::copiarTextoPreenchido(textoEditado_, 8, configuracao.rdsPs);
@@ -204,9 +263,8 @@ Menu::Acao Menu::girar(int8_t deslocamento) {
   }
   switch (itemAtual()) {
     case RF_FREQUENCIA:
-      valorEditado_ = ajustarNumero(valorEditado_, deslocamento,
-          Configuracao::FREQUENCIA_MINIMA_KHZ, Configuracao::FREQUENCIA_MAXIMA_KHZ,
-          Configuracao::PASSO_FREQUENCIA_KHZ);
+      valorEditado_ = ajustarFrequencia(
+          valorEditado_, deslocamento, passoFrequenciaEdicao_);
       break;
     case RF_POTENCIA:
       valorEditado_ = ajustarNumero(valorEditado_, deslocamento,
@@ -217,6 +275,23 @@ Menu::Acao Menu::girar(int8_t deslocamento) {
           Configuracao::CAPACITANCIA_ANTENA_MAXIMA);
       break;
     case AUDIO_DESVIO: valorEditado_ = ajustarNumero(valorEditado_, deslocamento, 50, 66); break;
+    case SISTEMA_REPOUSO: {
+      const auto& tempos = Configuracao::TEMPOS_REPOUSO_DISPLAY_SEGUNDOS;
+      const int quantidade = sizeof(tempos) / sizeof(tempos[0]);
+      int indice = 0;
+      while (indice < quantidade && tempos[indice] != valorEditado_) indice++;
+      if (indice == quantidade) indice = 0;
+      indice = (indice + deslocamento) % quantidade;
+      if (indice < 0) indice += quantidade;
+      valorEditado_ = tempos[indice];
+      break;
+    }
+    case SISTEMA_VOLUME_MONITOR:
+      valorEditado_ = ajustarNumero(
+          valorEditado_, deslocamento,
+          Configuracao::VOLUME_MONITOR_MINIMO,
+          Configuracao::VOLUME_MONITOR_MAXIMO);
+      break;
     default: break;
   }
   return NENHUMA;
@@ -229,6 +304,12 @@ void Menu::copiarCampoConfirmado(ConfiguracaoTransmissor& configuracao) {
     case RF_POTENCIA: configuracao.potenciaDbuv = valorEditado_; break;
     case RF_ANTENA: configuracao.capacitanciaAntena = valorEditado_; break;
     case AUDIO_DESVIO: configuracao.desvioAudioKhz = valorEditado_; break;
+    case SISTEMA_REPOUSO:
+      configuracao.repousoDisplaySegundos = valorEditado_;
+      break;
+    case SISTEMA_VOLUME_MONITOR:
+      configuracao.volumeMonitor = valorEditado_;
+      break;
     case RDS_PS: memcpy(configuracao.rdsPs, textoEditado_, sizeof(configuracao.rdsPs)); break;
     case RDS_TEXTO: memcpy(configuracao.rdsText, textoEditado_, sizeof(configuracao.rdsText)); break;
     case RDS_PI: configuracao.rdsPi = strtoul(textoEditado_, nullptr, 16); break;

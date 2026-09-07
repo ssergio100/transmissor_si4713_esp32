@@ -12,6 +12,9 @@ class DisplayTft {
   bool iniciar();
   void mostrarInicializacao();
   void renderizar(const EstadoPainel& estado);
+  void entrarRepouso();
+  void sairRepouso();
+  bool emRepouso() const;
 
  private:
   Adafruit_ST7789 tft_;
@@ -20,4 +23,5 @@ class DisplayTft {
   bool pronto_ = false;
   bool painelValido_ = false;
   bool janelaAberta_ = false;
+  bool emRepouso_ = false;
 };

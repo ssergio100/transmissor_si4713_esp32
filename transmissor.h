@@ -16,6 +16,9 @@ class Transmissor {
 
   bool aplicarConfiguracao(ConfiguracaoTransmissor configuracao);
   bool salvarConfiguracao();
+  bool configurarRepousoDisplay(uint16_t segundos);
+  bool configurarPassoFrequencia(uint8_t passoKhz);
+  bool configurarVolumeMonitor(uint8_t volume);
   bool restaurarPadroes();
   bool reiniciarRf();
   bool iniciarVarredura();

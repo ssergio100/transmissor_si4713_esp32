@@ -49,6 +49,8 @@ export interface SystemState {
   frequencyMinKhz: number
   frequencyMaxKhz: number
   frequencyStepKhz: number
+  powerMinDbuv: number
+  powerMaxDbuv: number
 }
 
 export interface DeviceState {

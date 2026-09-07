@@ -26,8 +26,8 @@ Parâmetros:
 
 Saídas:
 
-    <raiz>/<nome>.h
-    <raiz>/assets/<nome>_previa.png
+    <raiz>/assets/imagens_tft/<nome>.h
+    <raiz>/assets/previews/<nome>_previa.png
 
 Requer:
 
@@ -48,7 +48,8 @@ from PIL import Image, ImageDraw, ImageFont
 RAIZ = Path(__file__).resolve().parent.parent
 
 FONTE = RAIZ / "assets/fontes/Nunito.ttf"
-PASTA_ASSETS = RAIZ / "assets"
+PASTA_IMAGENS_TFT = RAIZ / "assets/imagens_tft"
+PASTA_PREVIAS = RAIZ / "assets/previews"
 
 TAMANHO_PADRAO = 36
 PESO_PADRAO = 800
@@ -537,12 +538,12 @@ def main():
     )
 
     saida_h = (
-        RAIZ
+        PASTA_IMAGENS_TFT
         / f"{nome_base}.h"
     )
 
     saida_previa = (
-        PASTA_ASSETS
+        PASTA_PREVIAS
         / f"{nome_base}_previa.png"
     )
 

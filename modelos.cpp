@@ -12,10 +12,14 @@ void ConfiguracaoTransmissor::aplicarPadroes() {
   desvioAudioKhz = 66;
   capacitanciaAntena = 0;
   fonteRadioText = FonteRadioText::TEXTO_MANUAL;
+  modoMultiplex = 0xFF;
   estereo = true;
   transmissaoHabilitada = false;
   rdsHabilitado = true;
   audioMudo = false;
+  repousoDisplaySegundos = Configuracao::TEMPO_REPOUSO_DISPLAY_PADRAO_SEGUNDOS;
+  passoFrequenciaKhz = Configuracao::PASSO_FREQUENCIA_PADRAO_KHZ;
+  volumeMonitor = Configuracao::VOLUME_MONITOR_PADRAO;
   copiarTextoPreenchido(rdsPs, 8, "SI4713");
   copiarTextoPreenchido(rdsText, 32, "Transmissor FM Si4713");
   copiarTextoPreenchido(rdsModelo, 32, "{data} {hora}");
@@ -44,7 +48,19 @@ void ConfiguracaoTransmissor::sanitizarTextos() {
 }
 
 bool ConfiguracaoTransmissor::valoresValidos() const {
-  return magic == MAGIC
+  bool tempoRepousoValido = false;
+  for (uint16_t tempo : Configuracao::TEMPOS_REPOUSO_DISPLAY_SEGUNDOS) {
+    if (repousoDisplaySegundos == tempo) tempoRepousoValido = true;
+  }
+  bool passoFrequenciaValido = false;
+  for (uint16_t passo : Configuracao::PASSOS_FREQUENCIA_KHZ) {
+    if (passoFrequenciaKhz == passo) passoFrequenciaValido = true;
+  }
+  return (modoMultiplex == 0xFF || modoMultiplex == 0
+          || modoMultiplex == 1 || modoMultiplex == 2
+          || modoMultiplex == 3 || modoMultiplex == 7
+          || modoMultiplex == APENAS_L || modoMultiplex == APENAS_R)
+      && magic == MAGIC
       && versao == VERSAO
       && frequenciaKhz >= Configuracao::FREQUENCIA_MINIMA_KHZ
       && frequenciaKhz <= Configuracao::FREQUENCIA_MAXIMA_KHZ
@@ -55,6 +71,9 @@ bool ConfiguracaoTransmissor::valoresValidos() const {
       && desvioAudioKhz >= 50
       && desvioAudioKhz <= 66
       && capacitanciaAntena <= Configuracao::CAPACITANCIA_ANTENA_MAXIMA
+      && tempoRepousoValido
+      && passoFrequenciaValido
+      && volumeMonitor <= Configuracao::VOLUME_MONITOR_MAXIMO
       && static_cast<uint8_t>(fonteRadioText)
           <= static_cast<uint8_t>(FonteRadioText::MODELO);
 }
@@ -111,4 +130,32 @@ const char* nomeEventoSi4713(const TelemetriaTransmissor& telemetria) {
   if ((telemetria.ultimoEventoAsq & 0x02) != 0) return "audio_high";
   if ((telemetria.ultimoEventoAsq & 0x01) != 0) return "audio_low";
   return "asq";
+}
+
+uint8_t ConfiguracaoTransmissor::modoAudio() const {
+  return modoMultiplex == 0xFF
+      ? (estereo ? 3 : 0) | (rdsHabilitado ? 4 : 0)
+      : modoMultiplex;
+}
+
+uint8_t ConfiguracaoTransmissor::componentesMultiplex() const {
+  return modoMultiplex == APENAS_L || modoMultiplex == APENAS_R
+      ? 0x0003 : modoAudio();
+}
+
+uint8_t ConfiguracaoTransmissor::muteEntradas() const {
+  // AN332, TX_LINE_INPUT_MUTE (0x2105): bit 0 RIMUTE, bit 1 LIMUTE.
+  if (modoMultiplex == APENAS_L) return 0x0001;
+  if (modoMultiplex == APENAS_R) return 0x0002;
+  return audioMudo ? 0x0003 : 0x0000;
+}
+
+void ConfiguracaoTransmissor::selecionarMultiplex(uint8_t modo) {
+  const bool isolado = modo == APENAS_L || modo == APENAS_R;
+  const bool estavaIsolado = modoMultiplex == APENAS_L || modoMultiplex == APENAS_R;
+  if (isolado || estavaIsolado) audioMudo = false;
+  modoMultiplex = modo;
+  estereo = (componentesMultiplex() & 3) == 3;
+  // O teste L/R nao modifica a preferencia ou os dados RDS.
+  if (!isolado) rdsHabilitado = (modo & 4) != 0;
 }
