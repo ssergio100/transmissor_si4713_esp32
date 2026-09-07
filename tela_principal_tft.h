@@ -6,7 +6,8 @@
 // Renderizador independente: nao inicializa hardware nem altera o transmissor.
 class TelaPrincipalTft {
  public:
-  void renderizar(Adafruit_GFX& tft, const EstadoPainel& estado, bool entrada);
+  void renderizar(Adafruit_GFX& tft, const EstadoPainel& estado, bool entrada,
+                  bool somenteCabecalho = false);
 
  private:
   enum class Bloco { Transmissao, Rds, Frequencia, Potencia, Rssi,

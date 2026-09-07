@@ -18,6 +18,7 @@ constexpr uint16_t RGB(uint8_t r, uint8_t g, uint8_t b) {
 constexpr uint16_t PRETO            = RGB(0, 0, 0);
 constexpr uint16_t PETROLEO_ESCURO  = RGB(8, 12, 8);
 constexpr uint16_t AZUL_ARDOSIA     = RGB(16, 24, 24);
+constexpr uint16_t AZUL_PETROLEO    = RGB(34, 66, 80);
 constexpr uint16_t BRANCO           = RGB(239, 239, 239);
 constexpr uint16_t CINZA            = RGB(156, 158, 156);
 constexpr uint16_t LARANJA          = RGB(255, 166, 24);
@@ -42,6 +43,15 @@ constexpr uint16_t FUNDO_TELA = PETROLEO_ESCURO;
 constexpr uint16_t FUNDO_RODAPE = PETROLEO_ESCURO;
 constexpr uint16_t TEXTO_RODAPE = CINZA;
 constexpr uint16_t ALERTA_RODAPE = AMARELO;
+
+// Janela dos menus: troque o nome da cor usando a paleta da secao 1.
+constexpr uint16_t FUNDO_JANELA    = AZUL_ARDOSIA;
+constexpr uint16_t BORDA_JANELA    = AZUL;
+constexpr uint16_t FUNDO_SELECAO   = AZUL_PETROLEO;
+constexpr uint16_t TEXTO_MENU      = BRANCO;
+constexpr uint16_t VALOR_MENU      = LARANJA;
+constexpr uint16_t FUNDO_CARACTERE = LARANJA;
+constexpr uint16_t TEXTO_CARACTERE = PETROLEO_ESCURO;
 
 // ======================================================
 // 3. CORES POR BLOCO E ESTADO

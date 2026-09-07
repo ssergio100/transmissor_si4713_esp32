@@ -13,10 +13,9 @@ enum class TelaPainel : uint8_t {
   RDS,
   MONITOR,
   VARREDURA,
-  SISTEMA
 };
 
-enum class ItemPainel : uint8_t {
+enum ItemPainel : uint8_t {
   NENHUM = 0,
 
   RAIZ_RF,
@@ -24,7 +23,6 @@ enum class ItemPainel : uint8_t {
   RAIZ_RDS,
   RAIZ_MONITOR,
   RAIZ_VARREDURA,
-  RAIZ_SISTEMA,
   RAIZ_VOLTAR,
 
   RF_FREQUENCIA,
@@ -45,15 +43,8 @@ enum class ItemPainel : uint8_t {
   RDS_PI,
   RDS_VOLTAR,
 
-  VARREDURA_INICIAR,
   VARREDURA_USAR_MELHOR,
   VARREDURA_VOLTAR,
-
-  SISTEMA_SALVAR,
-  SISTEMA_PADROES,
-  SISTEMA_WIFI,
-  SISTEMA_INFO,
-  SISTEMA_VOLTAR
 };
 
 struct NavegacaoPainel {
@@ -63,6 +54,12 @@ struct NavegacaoPainel {
   uint8_t quantidade = 1;
   uint8_t cursorTexto = 0;
   bool editando = false;
+  bool resultadoBuscaDisponivel = false;
+  bool editandoCaractere = false;
+  uint8_t comprimentoTexto = 0;  // Cursor igual ao comprimento seleciona CONCLUIR.
+  int32_t valorEditado = 0;      // Numero ou indice da opcao, ainda nao aplicado.
+  char textoEditado[33] = {};
+  char erro[40] = {};
 };
 
 struct RfPainel {

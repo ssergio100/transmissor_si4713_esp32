@@ -23,131 +23,53 @@ namespace {
 
 uint32_t ultimaAtualizacaoDisplayMs = 0;
 
-void executarAcao(
-    Menu::Acao acao,
-    ConfiguracaoTransmissor configuracaoEditada
-) {
+// acao: pedido do menu. configuracaoEditada: copia atual com o campo confirmado.
+void executarAcao(Menu::Acao acao, const ConfiguracaoTransmissor& configuracaoEditada) {
+  using Acao = Menu::Acao;
   switch (acao) {
-    case Menu::Acao::APLICAR_CONFIGURACAO:
-      if (!transmissor.aplicarConfiguracao(configuracaoEditada)) {
-        Serial.println("[AVISO] Configuracao nao aplicada");
-      }
+    case Acao::APLICAR_CONFIGURACAO:
+      menu.concluirAplicacao(transmissor.aplicarConfiguracao(configuracaoEditada));
       break;
-
-    case Menu::Acao::INICIAR_AJUSTE_FREQUENCIA:
-      if (!transmissor.iniciarAjusteFrequencia()) {
-        Serial.println("[AVISO] Nao foi possivel iniciar o ajuste de frequencia");
-      }
+    case Acao::APLICAR_FREQUENCIA:
+      menu.concluirAplicacao(transmissor.aplicarFrequencia(configuracaoEditada.frequenciaKhz));
       break;
-
-    case Menu::Acao::PREVISUALIZAR_FREQUENCIA:
-      if (!transmissor.previsualizarFrequencia(
-              configuracaoEditada.frequenciaKhz
-          )) {
-        Serial.println("[AVISO] Passo de frequencia nao aplicado");
-      }
+    case Acao::INICIAR_VARREDURA:
+      menu.confirmarInicioVarredura(transmissor.iniciarVarredura());
       break;
-
-    case Menu::Acao::APLICAR_FREQUENCIA:
-      if (transmissor.aplicarFrequencia(configuracaoEditada.frequenciaKhz)) {
-        Serial.printf(
-            "[NVS] Frequencia aplicada e salva: %u\n",
-            configuracaoEditada.frequenciaKhz
-        );
-      } else {
-        Serial.println("[ERRO] Falha ao aplicar ou salvar frequencia");
-      }
+    case Acao::CANCELAR_VARREDURA:
+      if (!transmissor.cancelarVarredura()) menu.informarErro("Falha ao restaurar TX");
       break;
-
-    case Menu::Acao::SALVAR_CONFIGURACAO:
-      if (transmissor.salvarConfiguracao()) {
-        Serial.println("[NVS] Configuracao salva");
-      } else {
-        Serial.println("[ERRO] Falha ao salvar configuracao");
-      }
-      break;
-
-    case Menu::Acao::RESTAURAR_PADROES:
-      if (transmissor.restaurarPadroes()) {
-        Serial.println("[SISTEMA] Padroes restaurados");
-      }
-      break;
-
-    case Menu::Acao::INICIAR_VARREDURA:
-      if (transmissor.iniciarVarredura()) {
-        Serial.println("[SCAN] Varredura iniciada; TX pausado");
-      }
-      break;
-
-    case Menu::Acao::USAR_MELHOR_FREQUENCIA: {
+    case Acao::USAR_MELHOR_FREQUENCIA: {
       const uint16_t melhor = transmissor.melhorFrequencia();
-      if (melhor != 0 && transmissor.aplicarFrequencia(melhor)) {
-        Serial.printf("[SCAN] Frequencia aplicada e salva: %u\n", melhor);
-      }
+      const bool resultadoValido = transmissor.telemetria().varreduraConcluida && melhor != 0;
+      menu.concluirAplicacao(resultadoValido && transmissor.aplicarFrequencia(melhor));
       break;
     }
-
-    case Menu::Acao::CONFIGURAR_WIFI:
-      Rede::abrirPortalConfiguracao();
-      break;
-
-    default:
-      break;
+    default: break;
   }
 }
 
 bool processarControles() {
   const Controles::Evento evento = controles.consumirEvento();
-  if (evento.tipo == Controles::TipoEvento::NENHUM) return false;
-
-  if (transmissor.telemetria().varreduraAtiva) {
-    if (transmissor.cancelarVarredura()) {
-      Serial.println("[SCAN] Varredura cancelada pelo encoder; TX restaurado");
-    } else {
-      Serial.println("[AVISO] Falha ao restaurar TX apos cancelar varredura");
-    }
-
-    ConfiguracaoTransmissor editada = transmissor.copiarConfiguracao();
-    if (evento.tipo == Controles::TipoEvento::PRESSAO_LONGA) {
-      executarAcao(menu.voltar(), editada);
-    } else if (evento.tipo == Controles::TipoEvento::GIRO) {
-      executarAcao(menu.girar(evento.deslocamento, editada), editada);
-    }
-    return true;
-  }
+  using Evento = Controles::TipoEvento;
+  if (evento.tipo == Evento::NENHUM) return false;
 
   ConfiguracaoTransmissor editada = transmissor.copiarConfiguracao();
+  Menu::Acao acao = Menu::NENHUMA;
   switch (evento.tipo) {
-    case Controles::TipoEvento::CLIQUE:
-      if (Configuracao::LOG_EVENTOS_ENCODER) {
-        Serial.printf(
-            "[ENCODER] clique curto: %lu ms\n",
-            static_cast<unsigned long>(evento.duracaoPressaoMs)
-        );
-      }
-      executarAcao(menu.selecionar(editada), editada);
-      break;
-
-    case Controles::TipoEvento::PRESSAO_LONGA:
-      if (Configuracao::LOG_EVENTOS_ENCODER) {
-        Serial.printf(
-            "[ENCODER] pressao longa: %lu ms\n",
-            static_cast<unsigned long>(evento.duracaoPressaoMs)
-        );
-      }
-      executarAcao(menu.voltar(), editada);
-      break;
-
-    case Controles::TipoEvento::GIRO:
-      if (Configuracao::LOG_EVENTOS_ENCODER) {
-        Serial.printf("[ENCODER] giro=%d\n", evento.deslocamento);
-      }
-      executarAcao(menu.girar(evento.deslocamento, editada), editada);
-      break;
-
-    default:
-      break;
+    case Evento::CLIQUE: acao = menu.selecionar(editada); break;
+    case Evento::PRESSAO_LONGA: acao = menu.sairParaPrincipal(); break;
+    case Evento::GIRO: acao = menu.girar(evento.deslocamento); break;
+    default: break;
   }
+  if (Configuracao::LOG_EVENTOS_ENCODER) {
+    const char* nome = evento.tipo == Evento::GIRO ? "giro"
+        : evento.tipo == Evento::CLIQUE ? "clique" : "saida direta";
+    Serial.printf("[ENCODER] %s: passos=%d, duracao=%lu ms\n", nome,
+                  evento.deslocamento, static_cast<unsigned long>(evento.duracaoPressaoMs));
+  }
+  // Primeiro o menu termina de alterar a copia; so depois ela vai ao hardware.
+  executarAcao(acao, editada);
   return true;
 }
 
@@ -212,7 +134,7 @@ void setup() {
     );
     Serial.println("[TFT] Interface somente escrita; presenca nao confirmavel por software");
   } else {
-    Serial.println("[ERRO] Nao foi possivel iniciar o barramento SPI do TFT");
+    Serial.println("[ERRO] Falha ao iniciar SPI ou alocar a janela do TFT");
   }
 
   if (transmissor.iniciar()) {
@@ -242,6 +164,11 @@ void loop() {
   transmissor.processar();
   Rede::processar();
   api.processar();
+
+  // Sincroniza depois do radio e da API para desenhar o resultado atual.
+  const auto& telemetria = transmissor.telemetria();
+  menu.atualizarVarredura(telemetria.varreduraAtiva, telemetria.varreduraConcluida,
+                         transmissor.melhorFrequencia());
 
   const uint32_t agora = millis();
   if (controleProcessado
